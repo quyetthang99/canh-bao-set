@@ -29,7 +29,7 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git pull --rebase  # <--- BẠN THÊM DÒNG NÀY VÀO ĐÂY
           git add duongset.json
           git commit -m "Auto-update dữ liệu sét" || exit 0
+          git pull --rebase
           git push
