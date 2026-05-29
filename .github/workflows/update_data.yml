@@ -1,0 +1,34 @@
+name: Tự động cập nhật dữ liệu Sét
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Lên lịch chạy ngầm tự động mỗi 10 phút
+  workflow_dispatch: # Tạo thêm nút bấm để bạn có thể tự chạy thủ công khi cần
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Lấy mã nguồn về máy ảo
+        uses: actions/checkout@v3
+
+      - name: Cài đặt Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Cài đặt thư viện yêu cầu
+        run: pip install requests
+
+      - name: Chạy script cào dữ liệu
+        run: python crawl.py
+
+      - name: Lưu và đẩy file duongset.json mới lên GitHub
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add duongset.json
+          # Nếu có dữ liệu mới thì commit, không có thì bỏ qua để tránh lỗi
+          git commit -m "Auto-update dữ liệu sét" || exit 0
+          git push
