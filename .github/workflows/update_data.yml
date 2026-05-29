@@ -1,9 +1,10 @@
 name: Tự động cập nhật dữ liệu Sét
 
 on:
+  push: # Lệnh mới: Tự động chạy ngay lập tức khi bạn lưu file
   schedule:
     - cron: '*/10 * * * *' # Lên lịch chạy ngầm tự động mỗi 10 phút
-  workflow_dispatch: # Tạo thêm nút bấm để bạn có thể tự chạy thủ công khi cần
+  workflow_dispatch: # Nút bấm thủ công
 
 jobs:
   update-data:
@@ -29,6 +30,5 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add duongset.json
-          # Nếu có dữ liệu mới thì commit, không có thì bỏ qua để tránh lỗi
           git commit -m "Auto-update dữ liệu sét" || exit 0
           git push
