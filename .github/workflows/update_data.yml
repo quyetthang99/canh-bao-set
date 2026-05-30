@@ -25,11 +25,11 @@ jobs:
       - name: Chạy script cào dữ liệu
         run: python crawl.py
 
-      - name: Lưu và đẩy file duongset.json mới lên GitHub
+      - name: Lưu và đẩy dữ liệu lên GitHub
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add duongset.json
-          git commit -m "Auto-update dữ liệu sét" || exit 0
+          git add duongset.json database_set.json
+          git commit -m "Auto-update dữ liệu sét hiện tại và Database 1 tuần" || exit 0
           git pull --rebase
           git push
