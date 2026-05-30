@@ -98,7 +98,7 @@
         L.control.layers(null, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
 
         // ==================================================
-        // THÊM CHỦ QUYỀN VÀ THỦ ĐÔ NƯỚC CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+        // THÊM CHỦ QUYỀN VÀ THỦ ĐÔ 
         // ==================================================
         
         const redStarIcon = L.divIcon({
@@ -328,7 +328,7 @@
                                 address: address,
                                 lat: lat.toFixed(4),
                                 lng: lng.toFixed(4),
-                                time: timeString,
+                                time: timeString, // Dữ liệu thời gian đã sẵn sàng ở đây
                                 poleName: nearestPoleName,
                                 distSetToCot: distSetToCot
                             });
@@ -364,6 +364,7 @@
                         <tr style="border-bottom: 1px solid #e0e0e0;">
                             <td style="padding: 6px; text-align: center;">${item.stt}</td>
                             <td style="padding: 6px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.address}">${item.address}</td>
+                            <td style="padding: 6px; text-align: center; color: #555; white-space: nowrap;">${item.time}</td>
                             <td style="padding: 6px; font-weight: bold; color: #0056b3; text-align: center;">${item.poleName}</td>
                             <td style="padding: 6px; color: #d32f2f; font-weight: bold; text-align: center;">${item.distSetToCot}</td>
                         </tr>
@@ -371,11 +372,12 @@
                 });
 
                 if (insidePolygonData.length === 0) {
-                    tableRowsHtml = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#777;">Không tìm thấy điểm sét nào trong khu vực này.</td></tr>`;
+                    tableRowsHtml = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#777;">Không tìm thấy điểm sét nào trong khu vực này.</td></tr>`;
                 }
 
+                // Mở rộng width của thẻ div bao ngoài lên 550px để bảng có thêm chỗ cho cột Thời gian
                 const reportContent = `
-                    <div style="font-family: Arial; font-size: 12px; width: 420px;">
+                    <div style="font-family: Arial; font-size: 12px; width: 550px;">
                         <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">BẢNG KHOANH VÙNG SÉT</h4>
                         
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -389,6 +391,7 @@
                                     <tr>
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc;">STT</th>
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc; text-align: left;">Vị trí sét</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Thời gian</th>
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc;">Cột gần nhất</th>
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc;">Sét → Cột</th>
                                     </tr>
@@ -400,7 +403,8 @@
                         </div>
                     </div>
                 `;
-                activePolygonLayer.bindPopup(reportContent, { maxWidth: 450 }).openPopup();
+                // Tăng maxWidth của Popup lên 580 để hiển thị tốt bảng rộng
+                activePolygonLayer.bindPopup(reportContent, { maxWidth: 580 }).openPopup();
             }
         }
 
