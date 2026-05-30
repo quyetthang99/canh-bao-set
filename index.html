@@ -26,6 +26,14 @@
         
         .lightning-icon-div { cursor: pointer; filter: drop-shadow(0 0 2px rgba(0,0,0,0.8)); transition: transform 0.2s; }
         .lightning-icon-div:hover { transform: scale(1.4); }
+        
+        /* Style cho nút bấm Excel */
+        .btn-excel {
+            background-color: #28a745; color: white; border: none; padding: 6px 12px;
+            border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;
+            margin-top: 5px; transition: 0.2s;
+        }
+        .btn-excel:hover { background-color: #218838; }
     </style>
 </head>
 <body>
@@ -74,11 +82,11 @@
         };
         L.control.layers(null, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
 
-        // Biến toàn cục lưu trữ các thành phần hạ tầng độc lập để tính toán khoảng cách
         let poleFeatures = [];
-        let lineFeatures = [];
+        
+        // Biến toàn cục lưu dữ liệu để xuất Excel
+        let currentExportData = [];
 
-        // Hàm thông minh tự động quét tìm trường Tên Cột từ file PMIS
         function detectPoleName(properties) {
             if (!properties) return "Không rõ tên";
             const priorityKeys = ['Ten_Cot', 'TEN_COT', 'Ten_Cột', 'Ten', 'name', 'Name', 'MA_COT', 'Ma_Cot', 'Cot', 'Cột'];
@@ -136,22 +144,19 @@
             filterLightning();
         });
 
-        // ICON SÉT ĐỎ
         const lightningIconRed = L.divIcon({
             html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>',
             className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]
         });
 
-        // TẢI LƯỚI ĐIỆN VÀ PHÂN TÁCH ĐỐI TƯỢNG HÌNH HỌC
         async function loadLuoiDien() {
             try {
                 const response = await fetch(`./luoidien.json?t=${new Date().getTime()}`);
                 if (!response.ok) return; 
                 const data = await response.json();
                 
-                // Trích xuất riêng các Point (Cột) và LineString (Đường dây) để Turf phục vụ tính toán hình học
+                // Chỉ lấy dữ liệu Cột để tính khoảng cách
                 poleFeatures = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
-                lineFeatures = data.features.filter(f => f.geometry && (f.geometry.type === "LineString" || f.geometry.type === "MultiLineString"));
 
                 L.geoJSON(data, {
                     style: function (feature) {
@@ -197,8 +202,38 @@
         }
 
         // ==========================================
-        // XỬ LÝ LỌC SÉT VÀ TÍNH TOÁN KHOẢNG CÁCH KHÔNG GIAN
+        // HÀM XUẤT EXCEL (CSV)
         // ==========================================
+        function exportExcel() {
+            if (!currentExportData || currentExportData.length === 0) {
+                alert("Không có dữ liệu điểm sét nào trong vùng để xuất báo cáo!");
+                return;
+            }
+
+            // \uFEFF là chuỗi BOM giúp phần mềm Excel nhận diện đúng font Tiếng Việt UTF-8
+            let csvContent = "\uFEFFSTT,Khu Vực,Thời Gian Ghi Nhận,Vĩ Độ,Kinh Độ,Cột Gần Nhất,Khoảng Cách (Sét -> Cột)\n";
+
+            currentExportData.forEach((row) => {
+                // Đóng ngoặc kép cho chuỗi để tránh lỗi khi khu vực có dấu phẩy
+                let safeAddress = `"${row.address}"`;
+                let safeTime = `"${row.time}"`;
+                let safePole = `"${row.poleName}"`;
+                let safeDist = `"${row.distSetToCot}"`;
+                
+                csvContent += `${row.stt},${safeAddress},${safeTime},${row.lat},${row.lng},${safePole},${safeDist}\n`;
+            });
+
+            // Tự động tải file
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "Bao_Cao_Set_Luoi_Dien.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         function filterLightning() {
             lightningLayer.clearLayers();
             
@@ -207,7 +242,7 @@
             const threshold = currentSeconds - filterSeconds;
 
             let count = 0;
-            let insidePolygonData = []; // Mảng chứa kết quả phân tích phục vụ lập bảng báo cáo
+            let insidePolygonData = []; 
 
             for (const key in lightningDatabase) {
                 const record = lightningDatabase[key];
@@ -231,70 +266,51 @@
                         const lng = parseFloat(coordParts[1]);
 
                         if (!isNaN(lat) && !isNaN(lng)) {
-                            const pt = turf.point([lng, lat]); // Điểm sét đánh hiện tại
+                            const pt = turf.point([lng, lat]);
                             let isInside = true;
 
-                            // Bộ lọc vùng khoanh
                             if (activePolygonGeoJSON) {
                                 if (!turf.booleanPointInPolygon(pt, activePolygonGeoJSON)) {
                                     isInside = false; 
                                 }
                             }
 
-                            if (!isInside) continue; // Nếu nằm ngoài vùng khoanh thì bỏ qua luôn
+                            if (!isInside) continue; 
 
                             const dateObj = new Date(timestamp * 1000);
                             const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
 
-                            // --------------------------------------------------
-                            // TOÁN HỌC KHÔNG GIAN: TÍNH TOÁN KHOẢNG CÁCH HẠ TẦNG
-                            // --------------------------------------------------
                             let nearestPoleName = "N/A";
                             let distSetToCot = "N/A";
-                            let distCotToDay = "N/A";
 
+                            // Tìm cột gần nhất (đã bỏ phần tính đường dây)
                             if (poleFeatures.length > 0) {
-                                // 1. Tìm cột điện gần điểm sét này nhất
                                 const poleCollection = turf.featureCollection(poleFeatures);
                                 const nearestPoleFeature = turf.nearestPoint(pt, poleCollection);
                                 
                                 nearestPoleName = detectPoleName(nearestPoleFeature.properties);
-                                // Tính khoảng cách từ Sét đến Cột (đơn vị mét)
                                 const dS2C = turf.distance(pt, nearestPoleFeature, {units: 'meters'});
                                 distSetToCot = `${dS2C.toFixed(1)} m`;
-
-                                // 2. Từ vị trí cột vừa tìm được, tìm khoảng cách đến đường dây điện gần nó nhất
-                                if (lineFeatures.length > 0) {
-                                    let minLineDist = Infinity;
-                                    lineFeatures.forEach(line => {
-                                        const dC2D = turf.pointToLineDistance(nearestPoleFeature, line, {units: 'meters'});
-                                        if (dC2D < minLineDist) {
-                                            minLineDist = dC2D;
-                                        }
-                                    });
-                                    if (minLineDist !== Infinity) {
-                                        distCotToDay = `${minLineDist.toFixed(1)} m`;
-                                    }
-                                }
                             }
 
-                            // Lưu thông tin phục vụ lập bảng hiển thị của vùng khoanh
+                            // Lưu dữ liệu vào mảng (dùng cho cả Bảng Web và Xuất Excel)
                             insidePolygonData.push({
+                                stt: count + 1,
                                 address: address,
+                                lat: lat.toFixed(4),
+                                lng: lng.toFixed(4),
+                                time: timeString,
                                 poleName: nearestPoleName,
-                                distSetToCot: distSetToCot,
-                                distCotToDay: distCotToDay
+                                distSetToCot: distSetToCot
                             });
 
-                            // Nội dung hiển thị bóng bóng khi xem lẻ từng điểm sét
                             const popupHTML = `
-                                <div style="font-family: Arial; font-size: 13px; width: 240px; line-height: 1.5;">
+                                <div style="font-family: Arial; font-size: 13px; width: 220px; line-height: 1.5;">
                                     <b style="color:red; font-size:14px;">⚡ ĐIỂM SÉT ĐÁNH</b><hr style="margin:5px 0;">
                                     <b>Khu vực:</b> ${address}<br>
                                     <b>Tọa độ:</b> ${lat.toFixed(4)}, ${lng.toFixed(4)}<br>
                                     <b>Thời gian:</b> <span style="color:blue; font-weight:bold;">${timeString}</span><br>
-                                    <span style="color:#e65100;"><b>Cột gần nhất:</b> ${nearestPoleName} (${distSetToCot})</span><br>
-                                    <span style="color:#1b5e20;"><b>Hành lang Cột - Dây:</b> ${distCotToDay}</span>
+                                    <span style="color:#e65100;"><b>Cột gần nhất:</b> ${nearestPoleName} (${distSetToCot})</span>
                                 </div>
                             `;
 
@@ -309,34 +325,38 @@
                 }
             }
             
-            // Cập nhật bộ đếm lên bảng thông tin
             document.getElementById('lightning-count').innerText = count;
 
-            // --------------------------------------------------
-            // VẼ BẢNG THỐNG KÊ CHI TIẾT LÊN VÙNG KHOANH KHI VẼ XONG
-            // --------------------------------------------------
+            // Gán dữ liệu vào biến toàn cục để Nút Xuất Excel lấy
+            currentExportData = insidePolygonData;
+
             if (activePolygonLayer) {
                 let tableRowsHtml = "";
-                insidePolygonData.forEach((item, index) => {
+                insidePolygonData.forEach((item) => {
                     tableRowsHtml += `
                         <tr style="border-bottom: 1px solid #e0e0e0;">
-                            <td style="padding: 6px; text-align: center;">${index + 1}</td>
-                            <td style="padding: 6px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.address}">${item.address}</td>
+                            <td style="padding: 6px; text-align: center;">${item.stt}</td>
+                            <td style="padding: 6px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.address}">${item.address}</td>
                             <td style="padding: 6px; font-weight: bold; color: #0056b3; text-align: center;">${item.poleName}</td>
                             <td style="padding: 6px; color: #d32f2f; font-weight: bold; text-align: center;">${item.distSetToCot}</td>
-                            <td style="padding: 6px; color: #2e7d32; font-weight: bold; text-align: center;">${item.distCotToDay}</td>
                         </tr>
                     `;
                 });
 
                 if (insidePolygonData.length === 0) {
-                    tableRowsHtml = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#777;">Không tìm thấy điểm sét nào trong khu vực này.</td></tr>`;
+                    tableRowsHtml = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#777;">Không tìm thấy điểm sét nào trong khu vực này.</td></tr>`;
                 }
 
+                // Cập nhật câu chữ và thêm nút bấm gọi hàm exportExcel()
                 const reportContent = `
-                    <div style="font-family: Arial; font-size: 12px; width: 440px;">
+                    <div style="font-family: Arial; font-size: 12px; width: 420px;">
                         <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">BẢNG PHÂN TÍCH KHÔNG GIAN HẠ TẦNG LƯỚI ĐIỆN</h4>
-                        <p style="margin: 4px 0 8px 0;">Tổng số điểm sét oanh tạc vùng hành lang: <b style="font-size:14px; color:red;">${insidePolygonData.length}</b></p>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <p style="margin: 0;">Tổng số điểm sét trong vùng: <b style="font-size:14px; color:red;">${insidePolygonData.length}</b></p>
+                            <button class="btn-excel" onclick="exportExcel()">⬇ Xuất file Excel</button>
+                        </div>
+
                         <div style="max-height: 190px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px;">
                             <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
                                 <thead style="background: #f5f5f5; position: sticky; top: 0; box-shadow: 0 1px 0 #ccc; z-index: 10;">
@@ -345,7 +365,6 @@
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc; text-align: left;">Vị trí sét</th>
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc;">Cột gần nhất</th>
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc;">Sét → Cột</th>
-                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Cột → Dây</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -355,8 +374,7 @@
                         </div>
                     </div>
                 `;
-                // Gắn bảng báo cáo phân tích vào popup của khung hình vẽ
-                activePolygonLayer.bindPopup(reportContent, { maxWidth: 460 }).openPopup();
+                activePolygonLayer.bindPopup(reportContent, { maxWidth: 450 }).openPopup();
             }
         }
 
