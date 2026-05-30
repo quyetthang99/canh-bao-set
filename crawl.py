@@ -2,19 +2,22 @@ import requests
 import json
 import os
 import time
+import sys
 
 def crawl_lightning_data():
-    # Sử dụng Proxy trung gian để tránh việc máy chủ chính phủ chặn IP máy ảo GitHub (Mỹ)
-    original_url = "http://hymetnet.gov.vn/dongset"
-    url = f"https://api.allorigins.win/raw?url={original_url}"
+    # URL gốc của bạn
+    original_url = "http://hymetnet.gov.vn/dongset" 
     
-    # Rút gọn header để Proxy làm việc hiệu quả hơn
+    # Bơm thêm tham số thời gian để đánh lừa Proxy, bắt nó luôn lấy dữ liệu mới nhất (chống Cache)
+    proxy_url = f"https://api.allorigins.win/raw?url={original_url}&t={time.time()}"
+    
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
     
     db_file = "database_set.json"
     
+    # Đọc Database cũ
     db_data = {}
     if os.path.exists(db_file):
         try:
@@ -24,46 +27,46 @@ def crawl_lightning_data():
             db_data = {}
 
     try:
-        print("Đang kết nối qua Proxy để cào dữ liệu sét...")
-        # Tăng timeout lên 20s vì đi qua Proxy sẽ chậm hơn một chút
-        response = requests.get(url, headers=headers, timeout=20)
-        print(f"Mã trạng thái HTTP: {response.status_code}")
+        print(f"Đang kết nối để lấy dữ liệu từ: {original_url}")
+        response = requests.get(proxy_url, headers=headers, timeout=20)
+        
+        # In thẳng 200 ký tự đầu tiên ra log để "bắt tận tay" xem nó là tọa độ hay trang HTML
+        preview = response.text[:200].replace('\n', ' ')
+        print(f"👉 Dữ liệu máy chủ trả về: {preview}...")
         
         if response.status_code == 200:
             try:
                 new_data = response.json()
-                current_time = time.time() 
-                diem_moi = 0
-                
-                # Trộn dữ liệu mới vào Database lịch sử
-                for key, value in new_data.items():
-                    if key not in db_data:
-                        db_data[key] = {
-                            "info": value,
-                            "timestamp": current_time 
-                        }
-                        diem_moi += 1
-                
-                # Lọc bỏ sét cũ quá 7 ngày
-                seven_days_ago = current_time - 604800
-                filtered_db = {k: v for k, v in db_data.items() if v["timestamp"] >= seven_days_ago}
-                
-                # Lưu file
-                with open(db_file, "w", encoding="utf-8") as f:
-                    json.dump(filtered_db, f, ensure_ascii=False, indent=4)
-                    
-                with open("duongset.json", "w", encoding="utf-8") as f:
-                    json.dump(new_data, f, ensure_ascii=False, indent=4)
-                
-                print(f"✅ Xong! Cào được {len(new_data)} điểm (Thêm {diem_moi} điểm vào lịch sử). Tổng Database: {len(filtered_db)} điểm.")
-            
             except json.JSONDecodeError:
-                print("❌ Lỗi: Proxy trả về HTML, có thể server Hymetnet đang bảo trì hoặc chặn Proxy.")
+                print("❌ LỖI NGHIÊM TRỌNG: Dữ liệu tải về là trang web HTML, không phải tọa độ JSON!")
+                print("Nguyên nhân: Đường link 'dongset' có thể là link giao diện web, không phải link API.")
+                sys.exit(1) # Đánh sập tiến trình để báo dấu X ĐỎ trên GitHub
+                
+            current_time = time.time() 
+            diem_moi = 0
+            
+            for key, value in new_data.items():
+                if key not in db_data:
+                    db_data[key] = {"info": value, "timestamp": current_time}
+                    diem_moi += 1
+            
+            seven_days_ago = current_time - 604800
+            filtered_db = {k: v for k, v in db_data.items() if v["timestamp"] >= seven_days_ago}
+            
+            with open(db_file, "w", encoding="utf-8") as f:
+                json.dump(filtered_db, f, ensure_ascii=False, indent=4)
+                
+            with open("duongset.json", "w", encoding="utf-8") as f:
+                json.dump(new_data, f, ensure_ascii=False, indent=4)
+            
+            print(f"✅ THÀNH CÔNG! Đã cào được {len(new_data)} điểm (Thêm {diem_moi} điểm vào lịch sử).")
         else:
-            print(f"❌ Lỗi kết nối. Mã lỗi: {response.status_code}")
+            print(f"❌ Lỗi HTTP: {response.status_code}")
+            sys.exit(1)
             
     except Exception as e:
-        print(f"❌ Lỗi mạng hoặc hệ thống: {e}")
+        print(f"❌ Lỗi mạng: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     crawl_lightning_data()
