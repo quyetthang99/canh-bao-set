@@ -1,0 +1,35 @@
+name: Tự động chuyển đổi Shapefile ZIP sang JSON
+
+on:
+  push:
+    paths:
+      - '**.zip' # Lệnh này bảo Bot: CHỈ chạy khi có ai đó upload file ZIP lên!
+  workflow_dispatch: # Nút bấm chạy thủ công nếu cần
+
+jobs:
+  convert-shp:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Kéo mã nguồn về
+        uses: actions/checkout@v3
+
+      - name: Cài đặt Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Cài đặt thư viện Bản đồ (Geopandas)
+        run: pip install geopandas pyproj fiona
+
+      - name: Chạy Script giải nén và chuyển đổi
+        run: python convert_zip.py
+
+      - name: Lưu file luoidien.json vĩnh viễn lên kho lưu trữ
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add luoidien.json
+          git commit -m "Đã chuyển đổi ZIP thành JSON lưới điện vĩnh viễn" || exit 0
+          git pull --rebase
+          git push
