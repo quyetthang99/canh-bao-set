@@ -35,6 +35,18 @@
             margin-top: 5px; transition: 0.2s;
         }
         .btn-excel:hover { background-color: #218838; }
+
+        /* Style nhãn tên Quần đảo chủ quyền */
+        .island-label {
+            font-weight: bold;
+            color: #bd0000;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #bd0000;
+            border-radius: 4px;
+            font-size: 12px;
+            padding: 4px 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
@@ -70,6 +82,7 @@
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
     
     <script>
+        // Mở rộng góc nhìn mặc định bao quát toàn tỉnh Lào Cai khi khởi động
         const map = L.map('map').setView([22.3500, 104.0500], 9);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -85,24 +98,42 @@
         };
         L.control.layers(null, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
 
-        let poleFeatures = [];
-        let currentExportData = [];
+        // ==================================================
+        // THÊM CHỦ QUYỀN VÀ THỦ ĐÔ NƯỚC CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+        // ==================================================
+        
+        // 1. Icon Ngôi sao đỏ cho Thủ đô Hà Nội
+        const redStarIcon = L.divIcon({
+            html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2" d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"></path></svg>',
+            className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
+        });
 
-        function detectPoleName(properties) {
-            if (!properties) return "Không rõ tên";
-            const priorityKeys = ['Ten_Cot', 'TEN_COT', 'Ten_Cột', 'Ten', 'name', 'Name', 'MA_COT', 'Ma_Cot', 'Cot', 'Cột'];
-            for (let key of priorityKeys) {
-                if (properties[key]) return properties[key];
-            }
-            for (let key in properties) {
-                if (typeof properties[key] === 'string' && properties[key].length > 0) return properties[key];
-            }
-            return "Cột chưa đặt tên";
-        }
+        // 2. Icon Điểm mốc cho Quần đảo Hoàng Sa & Trường Sa
+        const islandIcon = L.divIcon({
+            html: '<svg width="14" height="14" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2"></circle></svg>',
+            className: 'lightning-icon-div', iconSize: [14, 14], iconAnchor: [7, 7]
+        });
+
+        // Đặt mốc Hà Nội
+        const hanoiMarker = L.marker([21.0285, 105.8542], { icon: redStarIcon }).addTo(map);
+        hanoiMarker.bindPopup("<div style='text-align:center; font-weight:bold; font-size:13px;'>THỦ ĐÔ HÀ NỘI</div>");
+
+        // Đặt mốc Hoàng Sa
+        const hoangSaMarker = L.marker([16.5000, 112.0000], { icon: islandIcon }).addTo(map);
+        hoangSaMarker.bindTooltip("QUẦN ĐẢO HOÀNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
+        hoangSaMarker.bindPopup("<div style='text-align:center; font-weight:bold; font-size:13px;'>Quần đảo Hoàng Sa thuộc chủ quyền độc lập của Việt Nam</div>");
+
+        // Đặt mốc Trường Sa
+        const truongSaMarker = L.marker([9.5000, 112.5000], { icon: islandIcon }).addTo(map);
+        truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
+        truongSaMarker.bindPopup("<div style='text-align:center; font-weight:bold; font-size:13px;'>Quần đảo Trường Sa thuộc chủ quyền độc lập của Việt Nam</div>");
 
         // ==========================================
         // CẤU HÌNH CÔNG CỤ KHOANH VÙNG 
         // ==========================================
+        let poleFeatures = [];
+        let currentExportData = [];
+
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
 
@@ -149,6 +180,18 @@
             html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>',
             className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]
         });
+
+        function detectPoleName(properties) {
+            if (!properties) return "Không rõ tên";
+            const priorityKeys = ['Ten_Cot', 'TEN_COT', 'Ten_Cột', 'Ten', 'name', 'Name', 'MA_COT', 'Ma_Cot', 'Cot', 'Cột'];
+            for (let key of priorityKeys) {
+                if (properties[key]) return properties[key];
+            }
+            for (let key in properties) {
+                if (typeof properties[key] === 'string' && properties[key].length > 0) return properties[key];
+            }
+            return "Cột chưa đặt tên";
+        }
 
         async function loadLuoiDien() {
             try {
@@ -201,9 +244,6 @@
             }
         }
 
-        // ==========================================
-        // HÀM XUẤT EXCEL (CSV)
-        // ==========================================
         function exportExcel() {
             if (!currentExportData || currentExportData.length === 0) {
                 alert("Không có dữ liệu điểm sét nào trong vùng để xuất báo cáo!");
