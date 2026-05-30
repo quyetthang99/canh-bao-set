@@ -14,7 +14,7 @@
         }
         #map { width: 100%; height: 100vh; }
         .info-panel {
-            position: absolute; top: 15px; left: 50px; /* Đổi sang góc trái để nhường chỗ cho Menu Layer bên phải */
+            position: absolute; top: 15px; left: 50px;
             background: rgba(255, 255, 255, 0.95); padding: 15px;
             border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             z-index: 1000; width: 260px;
@@ -23,6 +23,10 @@
         .status { font-weight: bold; }
         .popup-custom { max-height: 200px; overflow-y: auto; font-size: 13px; }
         .popup-custom b { color: #0056b3; }
+        
+        /* Chỉnh style cho thanh chọn thời gian */
+        .filter-section { margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px; }
+        select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #aaa; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -31,6 +35,19 @@
         <h3>Cảnh Báo Giông Sét</h3>
         <p>Trạng thái: <span id="loading-status" class="status" style="color: orange;">Đang tải...</span></p>
         <p>Số điểm sét: <span id="lightning-count" style="font-weight: bold; color: #d9534f;">0</span></p>
+        
+        <div class="filter-section">
+            <label for="time-filter"><b>Lọc theo thời gian:</b></label>
+            <select id="time-filter" onchange="filterLightning()">
+                <option value="1800">30 Phút qua</option>
+                <option value="7200">2 Giờ qua</option>
+                <option value="21600">6 Giờ qua</option>
+                <option value="43200">12 Giờ qua</option>
+                <option value="86400">24 Giờ qua</option>
+                <option value="172800">2 Ngày qua</option>
+                <option value="604800" selected>1 Tuần qua (Tất cả)</option>
+            </select>
+        </div>
     </div>
 
     <div id="map"></div>
@@ -38,19 +55,18 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
-        // 1. Khởi tạo bản đồ, focus thẳng vào khu vực Văn Bàn - Lào Cai
+        // 1. Khởi tạo bản đồ, focus về khu vực Văn Bàn - Lào Cai
         const map = L.map('map').setView([22.0500, 104.2000], 11);
 
-        // Lớp bản đồ nền
-        const basemap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // 2. Tạo 2 Layer Group riêng biệt để quản lý bật/tắt
+        // 2. Lớp Layer 
         const lightningLayer = L.layerGroup().addTo(map);
         const luoiDienLayer = L.layerGroup().addTo(map);
 
-        // 3. Thêm Menu điều khiển Layer ở góc phải
+        // 3. Menu góc phải
         const overlayMaps = {
             "⚡ Cảnh báo Sét đánh": lightningLayer,
             "🔌 Hạ tầng Lưới điện": luoiDienLayer
@@ -58,34 +74,28 @@
         L.control.layers(null, overlayMaps, {collapsed: false}).addTo(map);
 
         // ==========================================
-        // PHẦN 1: ĐỌC VÀ VẼ LƯỚI ĐIỆN TỪ JSON
+        // PHẦN 1: TẢI LƯỚI ĐIỆN 
         // ==========================================
         async function loadLuoiDien() {
             try {
-                // Thêm timestamp để ép trình duyệt luôn lấy file mới nhất (tránh lưu cache)
                 const response = await fetch(`./luoidien.json?t=${new Date().getTime()}`);
-                if (!response.ok) throw new Error("Chưa tải được file lưới điện");
+                if (!response.ok) return; // Nếu chưa có file lưới điện thì bỏ qua
                 
                 const data = await response.json();
                 
-                // Vẽ lưới điện bằng L.geoJSON
                 const geoJsonLayer = L.geoJSON(data, {
-                    // Tùy biến màu sắc và hình dáng
                     style: function (feature) {
-                        // Nếu là đường dây (LineString) -> Vẽ nét liền màu xanh dương
                         if (feature.geometry.type === "LineString" || feature.geometry.type === "MultiLineString") {
                             return { color: "#0056b3", weight: 3, opacity: 0.8 }; 
                         }
                         return {};
                     },
                     pointToLayer: function (feature, latlng) {
-                        // Nếu là điểm (Cột điện, Trạm) -> Vẽ chấm tròn màu cam
                         return L.circleMarker(latlng, {
                             radius: 5, fillColor: "#ff8c00", color: "#ffffff", weight: 1, fillOpacity: 0.9
                         });
                     },
                     onEachFeature: function (feature, layer) {
-                        // Tự động quét và hiển thị toàn bộ thuộc tính PMIS khi click vào
                         if (feature.properties) {
                             let popupContent = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
                             for (const key in feature.properties) {
@@ -99,57 +109,97 @@
                     }
                 }).addTo(luoiDienLayer);
 
-                // Tự động zoom bản đồ vừa khít với toàn bộ mạng lưới điện
                 map.fitBounds(geoJsonLayer.getBounds());
-
             } catch (error) {
-                console.error("Lỗi:", error);
+                console.error("Lỗi tải lưới điện:", error);
             }
         }
 
         // ==========================================
-        // PHẦN 2: ĐỌC VÀ VẼ ĐIỂM SÉT (Giữ nguyên logic)
+        // PHẦN 2: DATABASE SÉT VÀ LỌC THỜI GIAN
         // ==========================================
+        
+        let lightningDatabase = {}; // Biến toàn cục để lưu trữ toàn bộ dữ liệu 1 tuần
+
+        // Hàm gọi API lấy dữ liệu 1 lần duy nhất mỗi chu kỳ
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
             try {
-                const response = await fetch(`./duongset.json?t=${new Date().getTime()}`);
-                if (!response.ok) throw new Error("File sét chưa có dữ liệu");
+                // Tải file DATABASE thay vì file tức thời
+                const response = await fetch(`./database_set.json?t=${new Date().getTime()}`);
+                if (!response.ok) throw new Error("Chưa có Database");
                 
-                const data = await response.json();
-                lightningLayer.clearLayers();
-                let count = 0;
-
-                for (const key in data) {
-                    if (data.hasOwnProperty(key)) {
-                        const info = data[key];
-                        const lat = parseFloat(info[1]);
-                        const lng = parseFloat(info[2]);
-
-                        if (!isNaN(lat) && !isNaN(lng)) {
-                            const marker = L.circleMarker([lat, lng], {
-                                radius: 6, fillColor: "#ff1a1a", color: "#ffffff", weight: 1, fillOpacity: 0.85
-                            }).bindPopup(`<b>⚡ Vị trí:</b> ${info[0]}<br><b>Tọa độ:</b> ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-                            
-                            lightningLayer.addLayer(marker);
-                            count++;
-                        }
-                    }
-                }
-                document.getElementById('lightning-count').innerText = count;
+                // Lưu dữ liệu vào biến toàn cục
+                lightningDatabase = await response.json();
+                
+                // Gọi hàm lọc để vẽ lên bản đồ dựa trên thanh gạt hiện tại
+                filterLightning();
+                
                 statusLabel.innerText = "Hoạt động tốt";
                 statusLabel.style.color = "green";
             } catch (error) {
-                statusLabel.innerText = "Chờ dữ liệu sét...";
+                console.log(error);
+                statusLabel.innerText = "Chờ đồng bộ sét...";
                 statusLabel.style.color = "gray";
             }
         }
 
-        // Khởi động chạy cả 2 hàm
+        // Hàm lọc và vẽ điểm sét khi người dùng đổi lựa chọn thời gian
+        function filterLightning() {
+            // Xóa sạch các điểm sét trên bản đồ trước khi vẽ lại
+            lightningLayer.clearLayers();
+            
+            // 1. Lấy khoảng thời gian chọn (số giây) từ menu Dropdown
+            const filterSeconds = parseInt(document.getElementById('time-filter').value);
+            
+            // 2. Lấy mốc thời gian hiện tại của trình duyệt (chuyển đổi Mili-giây sang Giây để khớp với Python)
+            const currentSeconds = Date.now() / 1000;
+            const threshold = currentSeconds - filterSeconds;
+
+            let count = 0;
+
+            // 3. Duyệt qua Database và đối chiếu thời gian
+            for (const key in lightningDatabase) {
+                const record = lightningDatabase[key];
+                const info = record.info;
+                const timestamp = record.timestamp;
+
+                // Nếu sét đánh SAU mốc thời gian ngưỡng -> Đủ điều kiện hiển thị
+                if (timestamp >= threshold) {
+                    const diaDanh = info[0];
+                    const lat = parseFloat(info[1]);
+                    const lng = parseFloat(info[2]);
+
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        // Dịch timestamp về giờ VN dễ đọc
+                        const dateObj = new Date(timestamp * 1000);
+                        const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
+
+                        const marker = L.circleMarker([lat, lng], {
+                            radius: 5, fillColor: "#ff1a1a", color: "#ffffff", weight: 1, fillOpacity: 0.9
+                        }).bindPopup(`
+                            <div style="font-family: Arial; font-size: 13px;">
+                                <b style="color:red; font-size:14px;">⚡ ĐIỂM SÉT ĐÁNH</b><hr style="margin:5px 0;">
+                                <b>Khu vực:</b> ${diaDanh}<br>
+                                <b>Tọa độ:</b> ${lat.toFixed(4)}, ${lng.toFixed(4)}<br>
+                                <b>Thời gian ghi nhận:</b> <span style="color:blue; font-weight:bold;">${timeString}</span>
+                            </div>
+                        `);
+                        
+                        lightningLayer.addLayer(marker);
+                        count++;
+                    }
+                }
+            }
+            // Cập nhật lại bộ đếm số lượng tia sét đang hiển thị
+            document.getElementById('lightning-count').innerText = count;
+        }
+
+        // Khởi động chạy 
         loadLuoiDien();
         fetchLightningData();
         
-        // Cập nhật điểm sét mỗi 3 phút
+        // Quét cập nhật dữ liệu sét ngầm mỗi 3 phút
         setInterval(fetchLightningData, 180000);
     </script>
 </body>
