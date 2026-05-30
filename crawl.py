@@ -5,11 +5,10 @@ import time
 import sys
 
 def crawl_lightning_data():
-    # URL gốc của bạn
     original_url = "http://hymetnet.gov.vn/dongset" 
     
-    # Bơm thêm tham số thời gian để đánh lừa Proxy, bắt nó luôn lấy dữ liệu mới nhất (chống Cache)
-    proxy_url = f"https://api.allorigins.win/raw?url={original_url}&t={time.time()}"
+    # Đổi sang Proxy của Codetabs (thường nhanh và ổn định hơn Allorigins)
+    proxy_url = f"https://api.codetabs.com/v1/proxy?quest={original_url}"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -17,7 +16,6 @@ def crawl_lightning_data():
     
     db_file = "database_set.json"
     
-    # Đọc Database cũ
     db_data = {}
     if os.path.exists(db_file):
         try:
@@ -27,10 +25,10 @@ def crawl_lightning_data():
             db_data = {}
 
     try:
-        print(f"Đang kết nối để lấy dữ liệu từ: {original_url}")
-        response = requests.get(proxy_url, headers=headers, timeout=20)
+        print(f"Đang kết nối qua Proxy (Codetabs) tới: {original_url}")
+        # TĂNG THỜI GIAN CHỜ LÊN 60 GIÂY
+        response = requests.get(proxy_url, headers=headers, timeout=60)
         
-        # In thẳng 200 ký tự đầu tiên ra log để "bắt tận tay" xem nó là tọa độ hay trang HTML
         preview = response.text[:200].replace('\n', ' ')
         print(f"👉 Dữ liệu máy chủ trả về: {preview}...")
         
@@ -39,8 +37,7 @@ def crawl_lightning_data():
                 new_data = response.json()
             except json.JSONDecodeError:
                 print("❌ LỖI NGHIÊM TRỌNG: Dữ liệu tải về là trang web HTML, không phải tọa độ JSON!")
-                print("Nguyên nhân: Đường link 'dongset' có thể là link giao diện web, không phải link API.")
-                sys.exit(1) # Đánh sập tiến trình để báo dấu X ĐỎ trên GitHub
+                sys.exit(1)
                 
             current_time = time.time() 
             diem_moi = 0
