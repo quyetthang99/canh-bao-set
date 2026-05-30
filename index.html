@@ -124,30 +124,8 @@
             "🛰️ Bản đồ Vệ tinh": googleSat
         };
 
-        // Gán vào biến layerControl để cấu hình Click Mở/Đóng
-        const layerControl = L.control.layers(baseMaps, overlayMaps, {collapsed: true, position: 'bottomleft'}).addTo(map);
-
-        // --- YÊU CẦU 2: CẤU HÌNH CLICK ĐỂ MỞ/ĐÓNG ICON LỚP ---
-        const layerContainer = layerControl.getContainer();
-        
-        // Tắt mở tự động khi trượt chuột vào
-        L.DomEvent.off(layerContainer, 'mouseenter', layerControl._expand, layerControl);
-        L.DomEvent.off(layerContainer, 'mouseleave', layerControl._collapse, layerControl);
-
-        let isLayerExpanded = false;
-        
-        // Chỉ khi Click mới mở hoặc đóng bảng
-        L.DomEvent.on(layerControl._layersLink, 'click', function(e) {
-            L.DomEvent.stop(e);
-            if (!isLayerExpanded) {
-                layerControl._expand();
-                isLayerExpanded = true;
-            } else {
-                layerControl._collapse();
-                isLayerExpanded = false;
-            }
-        });
-        // --------------------------------------------------------
+        // Đã sửa collapsed thành true để tạo icon menu trượt trên mobile
+        L.control.layers(baseMaps, overlayMaps, {collapsed: true, position: 'bottomleft'}).addTo(map);
 
         // ==================================================
         // CHỦ QUYỀN VÀ THỦ ĐÔ
@@ -182,13 +160,7 @@
 
         const drawControl = new L.Control.Draw({
             position: 'topleft',
-            // --- YÊU CẦU 1: XÓA NÚT SỬA (BÚT CHÌ), GIỮ NÚT THÙNG RÁC ---
-            edit: { 
-                featureGroup: drawnItems,
-                edit: false, 
-                remove: true 
-            },
-            // -----------------------------------------------------------
+            edit: { featureGroup: drawnItems },
             draw: {
                 polyline: false, marker: false, circlemarker: false, circle: false,
                 polygon: { allowIntersection: false, showArea: true },
