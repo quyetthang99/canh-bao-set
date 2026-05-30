@@ -112,6 +112,7 @@
             "⚡ Cảnh báo Sét đánh": lightningLayer
         };
 
+        // Bật mặc định tất cả 13 Điện lực
         for (let key in dienLucList) {
             gridLayers[key] = L.layerGroup().addTo(map); 
             overlayMaps[key] = gridLayers[key];
@@ -123,45 +124,43 @@
             "🛰️ Bản đồ Vệ tinh": googleSat
         };
 
+        // Tạo bảng Layer Control thu gọn
         const layerControl = L.control.layers(baseMaps, overlayMaps, {collapsed: true, position: 'bottomleft'}).addTo(map);
 
         // ==================================================
-        // TÙY CHỈNH NÚT QUẢN LÝ LỚP 
+        // TÙY CHỈNH NÚT QUẢN LÝ LỚP (CƠ CHẾ AN TOÀN TRÁNH LỖI)
         // ==================================================
         const layerContainer = layerControl.getContainer();
         
+        // Hủy tự động mở bằng hover chuột
         L.DomEvent.off(layerContainer, 'mouseenter', layerControl._expand, layerControl);
         L.DomEvent.off(layerContainer, 'mouseleave', layerControl._collapse, layerControl);
 
-        let isLayerExpanded = false;
-
+        // Mở bảng khi click vào icon
         L.DomEvent.on(layerControl._layersLink, 'click', function(e) {
             L.DomEvent.stop(e);
-            if (!isLayerExpanded) {
-                layerControl._expand();
-                isLayerExpanded = true;
+            layerControl._expand();
+        });
+
+        // Dùng setTimeout để đảm bảo DOM của Leaflet được tạo xong mới chèn nút Đóng (Tránh sập web)
+        setTimeout(() => {
+            if (layerControl._section) {
+                const closeBtn = document.createElement('div');
+                closeBtn.innerHTML = '✖ Đóng bảng lớp';
+                closeBtn.style.cssText = 'background: #ffeeee; color: #d32f2f; text-align: center; padding: 6px; margin-bottom: 8px; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 13px; border: 1px solid #ffcccc;';
+                layerControl._section.insertBefore(closeBtn, layerControl._section.firstChild);
+
+                // Nhấn nút X để đóng
+                L.DomEvent.on(closeBtn, 'click', function(e) {
+                    L.DomEvent.stop(e);
+                    layerControl._collapse();
+                });
             }
-        });
+        }, 500);
 
-        const closeBtn = document.createElement('div');
-        closeBtn.innerHTML = '✖ Đóng danh sách lớp';
-        closeBtn.style.cssText = 'background: #f1f1f1; color: #d32f2f; text-align: center; padding: 6px; margin-bottom: 8px; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 13px; border: 1px solid #ddd; transition: 0.2s;';
-        closeBtn.onmouseover = function() { this.style.background = '#e0e0e0'; };
-        closeBtn.onmouseout = function() { this.style.background = '#f1f1f1'; };
-        
-        layerControl._form.insertBefore(closeBtn, layerControl._form.firstChild);
-
-        L.DomEvent.on(closeBtn, 'click', function(e) {
-            L.DomEvent.stop(e);
-            layerControl._collapse();
-            isLayerExpanded = false;
-        });
-
+        // Click ra khoảng trống ngoài bản đồ tự động đóng bảng lớp
         map.on('click', function() {
-            if (isLayerExpanded) {
-                layerControl._collapse();
-                isLayerExpanded = false;
-            }
+            layerControl._collapse();
         });
 
         // ==================================================
@@ -187,7 +186,7 @@
         truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
         // ==========================================
-        // CÔNG CỤ KHOANH VÙNG (Đã xóa nút Edit)
+        // CÔNG CỤ KHOANH VÙNG (Đã xóa nút Edit, giữ nút Xóa)
         // ==========================================
         let allPoleFeatures = []; 
         let currentExportData = [];
@@ -199,8 +198,8 @@
             position: 'topleft',
             edit: { 
                 featureGroup: drawnItems,
-                edit: false, // TẮT NÚT EDIT
-                remove: true // GIỮ LẠI NÚT XÓA
+                edit: false, // Ẩn hoàn toàn nút Bút chì
+                remove: true // Giữ nút Thùng rác
             },
             draw: {
                 polyline: false, marker: false, circlemarker: false, circle: false,
@@ -221,8 +220,6 @@
             activePolygonLayer = layer;
             filterLightning(); 
         });
-
-        // Bỏ bắt sự kiện EDITED vì không còn nút Edit nữa
 
         map.on(L.Draw.Event.DELETED, function (e) {
             if (drawnItems.getLayers().length === 0) {
