@@ -1,10 +1,10 @@
-name: Tự động cập nhật dữ liệu Sét
+name: Tự động cập nhật dữ liệu Sét và Lưới điện
 
 on:
-  push: # Lệnh mới: Tự động chạy ngay lập tức khi bạn lưu file
+  push: # Tự động chạy ngay lập tức khi bạn up file zip hoặc sửa code
   schedule:
-    - cron: '*/10 * * * *' # Lên lịch chạy ngầm tự động mỗi 10 phút
-  workflow_dispatch: # Nút bấm thủ công
+    - cron: '*/10 * * * *' # Lên lịch chạy ngầm tự động mỗi 10 phút để quét sét
+  workflow_dispatch: # Nút bấm chạy thủ công nếu muốn
 
 jobs:
   update-data:
@@ -17,19 +17,26 @@ jobs:
       - name: Cài đặt Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.10' # Đặt bản 3.10 ổn định cho các thư viện GIS
 
-      - name: Cài đặt thư viện yêu cầu
-        run: pip install requests
+      - name: Cài đặt các thư viện yêu cầu (Sét & Bản đồ)
+        run: |
+          pip install requests geopandas pandas shapely fiona pyproj
 
-      - name: Chạy script cào dữ liệu
+      - name: ⚡ Chạy script cào dữ liệu Sét
         run: python crawl.py
 
-      - name: Lưu và đẩy dữ liệu lên GitHub
+      - name: 🔌 Chạy script chuyển đổi tự động các file .zip hạ tầng sang .json
+        run: python convert_zip.py
+
+      - name: 💾 Lưu vĩnh viễn và đẩy tất cả dữ liệu lên GitHub
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add duongset.json database_set.json
-          git commit -m "Auto-update dữ liệu sét hiện tại và Database 1 tuần" || exit 0
+          
+          # Lệnh quan trọng: Gom cả dữ liệu sét và TẤT CẢ các file .json lưới điện mới đẻ ra
+          git add duongset.json database_set.json *.json
+          
+          git commit -m "Auto-update dữ liệu sét và đồng bộ hạ tầng lưới điện các Điện lực" || exit 0
           git pull --rebase
           git push
