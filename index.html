@@ -74,8 +74,25 @@
         };
         L.control.layers(null, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
 
+        // Biến toàn cục lưu trữ các thành phần hạ tầng độc lập để tính toán khoảng cách
+        let poleFeatures = [];
+        let lineFeatures = [];
+
+        // Hàm thông minh tự động quét tìm trường Tên Cột từ file PMIS
+        function detectPoleName(properties) {
+            if (!properties) return "Không rõ tên";
+            const priorityKeys = ['Ten_Cot', 'TEN_COT', 'Ten_Cột', 'Ten', 'name', 'Name', 'MA_COT', 'Ma_Cot', 'Cot', 'Cột'];
+            for (let key of priorityKeys) {
+                if (properties[key]) return properties[key];
+            }
+            for (let key in properties) {
+                if (typeof properties[key] === 'string' && properties[key].length > 0) return properties[key];
+            }
+            return "Cột chưa đặt tên";
+        }
+
         // ==========================================
-        // CÔNG CỤ KHOANH VÙNG 
+        // CẤU HÌNH CÔNG CỤ KHOANH VÙNG 
         // ==========================================
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
@@ -101,8 +118,6 @@
             activePolygonGeoJSON = layer.toGeoJSON();
             activePolygonLayer = layer;
             filterLightning(); 
-            const currentCount = document.getElementById('lightning-count').innerText;
-            layer.bindPopup(`<div style="text-align:center"><b style='color:red; font-size:16px;'>CẢNH BÁO VÙNG</b><br>Phát hiện <b>${currentCount}</b> điểm sét!</div>`).openPopup();
         });
 
         map.on(L.Draw.Event.EDITED, function (e) {
@@ -111,8 +126,6 @@
                  activePolygonLayer = layer;
             });
             filterLightning();
-            const currentCount = document.getElementById('lightning-count').innerText;
-            activePolygonLayer.bindPopup(`<div style="text-align:center"><b style='color:red; font-size:16px;'>CẢNH BÁO VÙNG</b><br>Phát hiện <b>${currentCount}</b> điểm sét!</div>`).openPopup();
         });
 
         map.on(L.Draw.Event.DELETED, function (e) {
@@ -123,25 +136,23 @@
             filterLightning();
         });
 
-        // ==========================================
-        // ICON SÉT ĐỎ DUY NHẤT (SVG)
-        // ==========================================
+        // ICON SÉT ĐỎ
         const lightningIconRed = L.divIcon({
-            // Tăng size lên một chút (24x24) để dễ nhìn
             html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>',
-            className: 'lightning-icon-div', 
-            iconSize: [24, 24], 
-            iconAnchor: [12, 12], 
-            popupAnchor: [0, -12]
+            className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]
         });
 
-        // TẢI LƯỚI ĐIỆN
+        // TẢI LƯỚI ĐIỆN VÀ PHÂN TÁCH ĐỐI TƯỢNG HÌNH HỌC
         async function loadLuoiDien() {
             try {
                 const response = await fetch(`./luoidien.json?t=${new Date().getTime()}`);
                 if (!response.ok) return; 
                 const data = await response.json();
                 
+                // Trích xuất riêng các Point (Cột) và LineString (Đường dây) để Turf phục vụ tính toán hình học
+                poleFeatures = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
+                lineFeatures = data.features.filter(f => f.geometry && (f.geometry.type === "LineString" || f.geometry.type === "MultiLineString"));
+
                 L.geoJSON(data, {
                     style: function (feature) {
                         if (feature.geometry.type === "LineString" || feature.geometry.type === "MultiLineString") {
@@ -186,7 +197,7 @@
         }
 
         // ==========================================
-        // HÀM LỌC VÀ VẼ SÉT (ĐÃ TINH GIẢN)
+        // XỬ LÝ LỌC SÉT VÀ TÍNH TOÁN KHOẢNG CÁCH KHÔNG GIAN
         // ==========================================
         function filterLightning() {
             lightningLayer.clearLayers();
@@ -196,6 +207,7 @@
             const threshold = currentSeconds - filterSeconds;
 
             let count = 0;
+            let insidePolygonData = []; // Mảng chứa kết quả phân tích phục vụ lập bảng báo cáo
 
             for (const key in lightningDatabase) {
                 const record = lightningDatabase[key];
@@ -219,38 +231,76 @@
                         const lng = parseFloat(coordParts[1]);
 
                         if (!isNaN(lat) && !isNaN(lng)) {
-                            
-                            // BỘ LỌC KHÔNG GIAN (Giữ nguyên)
+                            const pt = turf.point([lng, lat]); // Điểm sét đánh hiện tại
+                            let isInside = true;
+
+                            // Bộ lọc vùng khoanh
                             if (activePolygonGeoJSON) {
-                                const pt = turf.point([lng, lat]); 
                                 if (!turf.booleanPointInPolygon(pt, activePolygonGeoJSON)) {
-                                    continue; 
+                                    isInside = false; 
                                 }
                             }
+
+                            if (!isInside) continue; // Nếu nằm ngoài vùng khoanh thì bỏ qua luôn
 
                             const dateObj = new Date(timestamp * 1000);
                             const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
 
-                            // NỘI DUNG BẢNG THÔNG TIN (Chỉ giữ lại dữ liệu xác thực)
+                            // --------------------------------------------------
+                            // TOÁN HỌC KHÔNG GIAN: TÍNH TOÁN KHOẢNG CÁCH HẠ TẦNG
+                            // --------------------------------------------------
+                            let nearestPoleName = "N/A";
+                            let distSetToCot = "N/A";
+                            let distCotToDay = "N/A";
+
+                            if (poleFeatures.length > 0) {
+                                // 1. Tìm cột điện gần điểm sét này nhất
+                                const poleCollection = turf.featureCollection(poleFeatures);
+                                const nearestPoleFeature = turf.nearestPoint(pt, poleCollection);
+                                
+                                nearestPoleName = detectPoleName(nearestPoleFeature.properties);
+                                // Tính khoảng cách từ Sét đến Cột (đơn vị mét)
+                                const dS2C = turf.distance(pt, nearestPoleFeature, {units: 'meters'});
+                                distSetToCot = `${dS2C.toFixed(1)} m`;
+
+                                // 2. Từ vị trí cột vừa tìm được, tìm khoảng cách đến đường dây điện gần nó nhất
+                                if (lineFeatures.length > 0) {
+                                    let minLineDist = Infinity;
+                                    lineFeatures.forEach(line => {
+                                        const dC2D = turf.pointToLineDistance(nearestPoleFeature, line, {units: 'meters'});
+                                        if (dC2D < minLineDist) {
+                                            minLineDist = dC2D;
+                                        }
+                                    });
+                                    if (minLineDist !== Infinity) {
+                                        distCotToDay = `${minLineDist.toFixed(1)} m`;
+                                    }
+                                }
+                            }
+
+                            // Lưu thông tin phục vụ lập bảng hiển thị của vùng khoanh
+                            insidePolygonData.push({
+                                address: address,
+                                poleName: nearestPoleName,
+                                distSetToCot: distSetToCot,
+                                distCotToDay: distCotToDay
+                            });
+
+                            // Nội dung hiển thị bóng bóng khi xem lẻ từng điểm sét
                             const popupHTML = `
-                                <div style="font-family: Arial; font-size: 13px; width: 220px; line-height: 1.5;">
+                                <div style="font-family: Arial; font-size: 13px; width: 240px; line-height: 1.5;">
                                     <b style="color:red; font-size:14px;">⚡ ĐIỂM SÉT ĐÁNH</b><hr style="margin:5px 0;">
                                     <b>Khu vực:</b> ${address}<br>
                                     <b>Tọa độ:</b> ${lat.toFixed(4)}, ${lng.toFixed(4)}<br>
-                                    <b>Thời gian:</b> <span style="color:blue; font-weight:bold;">${timeString}</span>
+                                    <b>Thời gian:</b> <span style="color:blue; font-weight:bold;">${timeString}</span><br>
+                                    <span style="color:#e65100;"><b>Cột gần nhất:</b> ${nearestPoleName} (${distSetToCot})</span><br>
+                                    <span style="color:#1b5e20;"><b>Hành lang Cột - Dây:</b> ${distCotToDay}</span>
                                 </div>
                             `;
 
-                            // Vẽ MARKER VỚI ICON ĐỎ DUY NHẤT
-                            const marker = L.marker([lat, lng], {
-                                icon: lightningIconRed
-                            })
-                            .bindPopup(popupHTML) // Click để hiện
-                            .bindTooltip(popupHTML, { // Rê chuột để hiện
-                                direction: 'top', 
-                                offset: [0, -15], 
-                                opacity: 0.95      
-                            });
+                            const marker = L.marker([lat, lng], { icon: lightningIconRed })
+                                            .bindPopup(popupHTML)
+                                            .bindTooltip(popupHTML, { direction: 'top', offset: [0, -15], opacity: 0.95 });
                             
                             lightningLayer.addLayer(marker);
                             count++;
@@ -258,7 +308,56 @@
                     }
                 }
             }
+            
+            // Cập nhật bộ đếm lên bảng thông tin
             document.getElementById('lightning-count').innerText = count;
+
+            // --------------------------------------------------
+            // VẼ BẢNG THỐNG KÊ CHI TIẾT LÊN VÙNG KHOANH KHI VẼ XONG
+            // --------------------------------------------------
+            if (activePolygonLayer) {
+                let tableRowsHtml = "";
+                insidePolygonData.forEach((item, index) => {
+                    tableRowsHtml += `
+                        <tr style="border-bottom: 1px solid #e0e0e0;">
+                            <td style="padding: 6px; text-align: center;">${index + 1}</td>
+                            <td style="padding: 6px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.address}">${item.address}</td>
+                            <td style="padding: 6px; font-weight: bold; color: #0056b3; text-align: center;">${item.poleName}</td>
+                            <td style="padding: 6px; color: #d32f2f; font-weight: bold; text-align: center;">${item.distSetToCot}</td>
+                            <td style="padding: 6px; color: #2e7d32; font-weight: bold; text-align: center;">${item.distCotToDay}</td>
+                        </tr>
+                    `;
+                });
+
+                if (insidePolygonData.length === 0) {
+                    tableRowsHtml = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#777;">Không tìm thấy điểm sét nào trong khu vực này.</td></tr>`;
+                }
+
+                const reportContent = `
+                    <div style="font-family: Arial; font-size: 12px; width: 440px;">
+                        <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">BẢNG PHÂN TÍCH KHÔNG GIAN HẠ TẦNG LƯỚI ĐIỆN</h4>
+                        <p style="margin: 4px 0 8px 0;">Tổng số điểm sét oanh tạc vùng hành lang: <b style="font-size:14px; color:red;">${insidePolygonData.length}</b></p>
+                        <div style="max-height: 190px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                                <thead style="background: #f5f5f5; position: sticky; top: 0; box-shadow: 0 1px 0 #ccc; z-index: 10;">
+                                    <tr>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">STT</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc; text-align: left;">Vị trí sét</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Cột gần nhất</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Sét → Cột</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Cột → Dây</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tableRowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                // Gắn bảng báo cáo phân tích vào popup của khung hình vẽ
+                activePolygonLayer.bindPopup(reportContent, { maxWidth: 460 }).openPopup();
+            }
         }
 
         loadLuoiDien();
