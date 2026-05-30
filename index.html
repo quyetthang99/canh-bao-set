@@ -3,54 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Cảnh Báo Giông Sét Toàn Toàn Quốc</title>
+    <title>Bản Đồ Cảnh Báo Sét & Lưới Điện</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
         body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
+            margin: 0; padding: 0; height: 100%;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        #map {
-            width: 100%;
-            height: 100vh;
-        }
+        #map { width: 100%; height: 100vh; }
         .info-panel {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            z-index: 1000;
-            width: 260px;
+            position: absolute; top: 15px; left: 50px; /* Đổi sang góc trái để nhường chỗ cho Menu Layer bên phải */
+            background: rgba(255, 255, 255, 0.95); padding: 15px;
+            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 1000; width: 260px;
         }
-        .info-panel h3 {
-            margin-top: 0;
-            color: #333;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 8px;
-        }
-        .status {
-            font-weight: bold;
-        }
-        button {
-            width: 100%;
-            padding: 8px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
+        .info-panel h3 { margin-top: 0; color: #333; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        .status { font-weight: bold; }
+        .popup-custom { max-height: 200px; overflow-y: auto; font-size: 13px; }
+        .popup-custom b { color: #0056b3; }
     </style>
 </head>
 <body>
@@ -58,8 +30,7 @@
     <div class="info-panel">
         <h3>Cảnh Báo Giông Sét</h3>
         <p>Trạng thái: <span id="loading-status" class="status" style="color: orange;">Đang tải...</span></p>
-        <p>Số điểm sét ghi nhận: <span id="lightning-count" style="font-weight: bold; color: #d9534f;">0</span></p>
-        <button onclick="fetchLightningData()">Cập nhật ngay</button>
+        <p>Số điểm sét: <span id="lightning-count" style="font-weight: bold; color: #d9534f;">0</span></p>
     </div>
 
     <div id="map"></div>
@@ -67,108 +38,118 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
-        // 1. Khởi tạo bản đồ, đặt tâm ở Việt Nam
-        const map = L.map('map').setView([16.047079, 108.206230], 6);
+        // 1. Khởi tạo bản đồ, focus thẳng vào khu vực Văn Bàn - Lào Cai
+        const map = L.map('map').setView([22.0500, 104.2000], 11);
 
-        // 2. Thêm lớp bản đồ nền đường phố công cộng mượt mà
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // Lớp bản đồ nền
+        const basemap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Tạo một LayerGroup riêng để quản lý các vị trí sét đánh
+        // 2. Tạo 2 Layer Group riêng biệt để quản lý bật/tắt
         const lightningLayer = L.layerGroup().addTo(map);
+        const luoiDienLayer = L.layerGroup().addTo(map);
 
-        // 3. Khai báo đọc trực tiếp từ file dữ liệu nội bộ (Do GitHub Actions cào về liên tục)
-        const API_URL = "./duongset.json"; 
+        // 3. Thêm Menu điều khiển Layer ở góc phải
+        const overlayMaps = {
+            "⚡ Cảnh báo Sét đánh": lightningLayer,
+            "🔌 Hạ tầng Lưới điện": luoiDienLayer
+        };
+        L.control.layers(null, overlayMaps, {collapsed: false}).addTo(map);
 
-        // 4. Hàm xử lý tải và vẽ dữ liệu thực tế lên bản đồ
-        async function fetchLightningData() {
-            const statusLabel = document.getElementById('loading-status');
-            statusLabel.innerText = "Đang cập nhật...";
-            statusLabel.style.color = "orange";
-            
+        // ==========================================
+        // PHẦN 1: ĐỌC VÀ VẼ LƯỚI ĐIỆN TỪ JSON
+        // ==========================================
+        async function loadLuoiDien() {
             try {
-                // Thêm timestamp để ép trình duyệt luôn tải dữ liệu mới nhất, tránh bị lưu cache cũ
-                const response = await fetch(`${API_URL}?t=${new Date().getTime()}`);
-                if (!response.ok) throw new Error("Không tìm thấy file duongset.json");
+                // Thêm timestamp để ép trình duyệt luôn lấy file mới nhất (tránh lưu cache)
+                const response = await fetch(`./luoidien.json?t=${new Date().getTime()}`);
+                if (!response.ok) throw new Error("Chưa tải được file lưới điện");
                 
                 const data = await response.json();
                 
-                // Làm sạch các marker cũ trước khi vẽ đợt dữ liệu mới
-                lightningLayer.clearLayers();
+                // Vẽ lưới điện bằng L.geoJSON
+                const geoJsonLayer = L.geoJSON(data, {
+                    // Tùy biến màu sắc và hình dáng
+                    style: function (feature) {
+                        // Nếu là đường dây (LineString) -> Vẽ nét liền màu xanh dương
+                        if (feature.geometry.type === "LineString" || feature.geometry.type === "MultiLineString") {
+                            return { color: "#0056b3", weight: 3, opacity: 0.8 }; 
+                        }
+                        return {};
+                    },
+                    pointToLayer: function (feature, latlng) {
+                        // Nếu là điểm (Cột điện, Trạm) -> Vẽ chấm tròn màu cam
+                        return L.circleMarker(latlng, {
+                            radius: 5, fillColor: "#ff8c00", color: "#ffffff", weight: 1, fillOpacity: 0.9
+                        });
+                    },
+                    onEachFeature: function (feature, layer) {
+                        // Tự động quét và hiển thị toàn bộ thuộc tính PMIS khi click vào
+                        if (feature.properties) {
+                            let popupContent = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
+                            for (const key in feature.properties) {
+                                if(feature.properties[key] !== null) {
+                                    popupContent += `<b>${key}:</b> ${feature.properties[key]}<br>`;
+                                }
+                            }
+                            popupContent += "</div>";
+                            layer.bindPopup(popupContent);
+                        }
+                    }
+                }).addTo(luoiDienLayer);
+
+                // Tự động zoom bản đồ vừa khít với toàn bộ mạng lưới điện
+                map.fitBounds(geoJsonLayer.getBounds());
+
+            } catch (error) {
+                console.error("Lỗi:", error);
+            }
+        }
+
+        // ==========================================
+        // PHẦN 2: ĐỌC VÀ VẼ ĐIỂM SÉT (Giữ nguyên logic)
+        // ==========================================
+        async function fetchLightningData() {
+            const statusLabel = document.getElementById('loading-status');
+            try {
+                const response = await fetch(`./duongset.json?t=${new Date().getTime()}`);
+                if (!response.ok) throw new Error("File sét chưa có dữ liệu");
                 
+                const data = await response.json();
+                lightningLayer.clearLayers();
                 let count = 0;
 
-                // 5. Vòng lặp bóc tách Object dữ liệu (Key: Mã sét, Value: Mảng thông tin)
                 for (const key in data) {
                     if (data.hasOwnProperty(key)) {
-                        const lightningInfo = data[key];
-                        
-                        // Trích xuất thông tin dựa trên cấu trúc thực tế của Hymetnet
-                        const diaDanh = lightningInfo[0];       // Tên địa điểm (Xã, Tỉnh...)
-                        const lat = parseFloat(lightningInfo[1]); // Vĩ độ (Latitude)
-                        const lng = parseFloat(lightningInfo[2]); // Kinh độ (Longitude)
+                        const info = data[key];
+                        const lat = parseFloat(info[1]);
+                        const lng = parseFloat(info[2]);
 
-                        // Kiểm tra dữ liệu tọa độ hợp lệ trước khi đưa lên bản đồ
                         if (!isNaN(lat) && !isNaN(lng)) {
-                            // Tạo Marker hình tròn biểu thị vị trí sét
                             const marker = L.circleMarker([lat, lng], {
-                                radius: 5,
-                                fillColor: "#ff1a1a", // Màu đỏ rực cho sét đánh
-                                color: "#ffffff",     // Viền trắng bao quanh giúp nổi bật trên bản đồ
-                                weight: 1,
-                                opacity: 1,
-                                fillOpacity: 0.85
-                            }).bindPopup(`
-                                <div style="font-family: Arial, sans-serif; font-size: 13px;">
-                                    <b style="color: red; font-size: 14px;">⚡ CẢNH BÁO SÉT ĐÁNH</b><br>
-                                    <hr style="margin: 5px 0; border: 0; border-top: 1px solid #eee;">
-                                    <b>Vị trí:</b> ${diaDanh}<br>
-                                    <b>Tọa độ:</b> ${lat.toFixed(4)}, ${lng.toFixed(4)}<br>
-                                    <b>Mã hệ thống:</b> ${key}
-                                </div>
-                            `);
-
+                                radius: 6, fillColor: "#ff1a1a", color: "#ffffff", weight: 1, fillOpacity: 0.85
+                            }).bindPopup(`<b>⚡ Vị trí:</b> ${info[0]}<br><b>Tọa độ:</b> ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+                            
                             lightningLayer.addLayer(marker);
                             count++;
                         }
                     }
                 }
-
-                // Cập nhật bảng hiển thị thông tin khi thành công
                 document.getElementById('lightning-count').innerText = count;
-                statusLabel.innerText = "Hoạt động";
+                statusLabel.innerText = "Hoạt động tốt";
                 statusLabel.style.color = "green";
-
             } catch (error) {
-                console.error("Chi tiết lỗi:", error);
-                statusLabel.innerText = "Chưa có file data";
-                statusLabel.style.color = "red";
-                
-                // Nếu chưa có file dữ liệu thật, chạy tạm dữ liệu giả lập để kiểm tra giao diện bản đồ
-                hienThiDuLieuGiaLap();
+                statusLabel.innerText = "Chờ dữ liệu sét...";
+                statusLabel.style.color = "gray";
             }
         }
 
-        // Hàm dự phòng hiển thị một vài điểm mẫu khi hệ thống chưa cào được file duongset.json
-        function hienThiDuLieuGiaLap() {
-            lightningLayer.clearLayers();
-            const sampleData = [
-                { lat: 21.0285, lng: 105.8048, place: "Khu vực Hà Nội (Dữ liệu mẫu)" },
-                { lat: 22.4842, lng: 103.9691, place: "Khu vực Lào Cai (Dữ liệu mẫu)" },
-                { lat: 10.8231, lng: 106.6297, place: "Khu vực TP.HCM (Dữ liệu mẫu)" }
-            ];
-            sampleData.forEach(item => {
-                L.circleMarker([item.lat, item.lng], { radius: 6, fillColor: "yellow", color: "black", fillOpacity: 0.9 })
-                 .bindPopup(`<b>Hệ thống đang chờ đồng bộ dữ liệu:</b><br>${item.place}`).addTo(lightningLayer);
-            });
-            document.getElementById('lightning-count').innerText = sampleData.length;
-        }
-
-        // Tự động khởi chạy ngay khi vừa mở trang web
+        // Khởi động chạy cả 2 hàm
+        loadLuoiDien();
         fetchLightningData();
         
-        // Cấu hình chu kỳ tự động tải lại dữ liệu mới sau mỗi 3 phút (180000 ms)
+        // Cập nhật điểm sét mỗi 3 phút
         setInterval(fetchLightningData, 180000);
     </script>
 </body>
