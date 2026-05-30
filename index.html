@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bản Đồ Cảnh Báo Sét & Lưới Điện</title>
+    <title>Bản Đồ Cảnh Báo Sét & Lưới Điện - Design by Quyết Thắng</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
@@ -17,7 +17,8 @@
             border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             z-index: 1000; width: 260px;
         }
-        .info-panel h3 { margin-top: 0; color: #333; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        .info-panel h3 { margin-top: 0; margin-bottom: 4px; color: #333; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        .author-credit { font-size: 12px; color: #666; font-style: italic; margin-top: 5px; margin-bottom: 10px; text-align: right; }
         .status { font-weight: bold; }
         .popup-custom { max-height: 200px; overflow-y: auto; font-size: 13px; }
         .popup-custom b { color: #0056b3; }
@@ -40,7 +41,9 @@
 
     <div class="info-panel">
         <h3>Cảnh Báo Giông Sét</h3>
-        <p>Trạng thái: <span id="loading-status" class="status" style="color: orange;">Đang tải...</span></p>
+        <div class="author-credit">Design by Quyết Thắng</div>
+        
+        <p style="margin-top: 0;">Trạng thái: <span id="loading-status" class="status" style="color: orange;">Đang tải...</span></p>
         <p>Số điểm sét: <span id="lightning-count" style="font-weight: bold; color: #d9534f; font-size: 18px;">0</span></p>
         
         <div class="filter-section">
@@ -83,8 +86,6 @@
         L.control.layers(null, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
 
         let poleFeatures = [];
-        
-        // Biến toàn cục lưu dữ liệu để xuất Excel
         let currentExportData = [];
 
         function detectPoleName(properties) {
@@ -155,7 +156,6 @@
                 if (!response.ok) return; 
                 const data = await response.json();
                 
-                // Chỉ lấy dữ liệu Cột để tính khoảng cách
                 poleFeatures = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
 
                 L.geoJSON(data, {
@@ -210,11 +210,9 @@
                 return;
             }
 
-            // \uFEFF là chuỗi BOM giúp phần mềm Excel nhận diện đúng font Tiếng Việt UTF-8
             let csvContent = "\uFEFFSTT,Khu Vực,Thời Gian Ghi Nhận,Vĩ Độ,Kinh Độ,Cột Gần Nhất,Khoảng Cách (Sét -> Cột)\n";
 
             currentExportData.forEach((row) => {
-                // Đóng ngoặc kép cho chuỗi để tránh lỗi khi khu vực có dấu phẩy
                 let safeAddress = `"${row.address}"`;
                 let safeTime = `"${row.time}"`;
                 let safePole = `"${row.poleName}"`;
@@ -223,7 +221,6 @@
                 csvContent += `${row.stt},${safeAddress},${safeTime},${row.lat},${row.lng},${safePole},${safeDist}\n`;
             });
 
-            // Tự động tải file
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
@@ -283,7 +280,6 @@
                             let nearestPoleName = "N/A";
                             let distSetToCot = "N/A";
 
-                            // Tìm cột gần nhất (đã bỏ phần tính đường dây)
                             if (poleFeatures.length > 0) {
                                 const poleCollection = turf.featureCollection(poleFeatures);
                                 const nearestPoleFeature = turf.nearestPoint(pt, poleCollection);
@@ -293,7 +289,6 @@
                                 distSetToCot = `${dS2C.toFixed(1)} m`;
                             }
 
-                            // Lưu dữ liệu vào mảng (dùng cho cả Bảng Web và Xuất Excel)
                             insidePolygonData.push({
                                 stt: count + 1,
                                 address: address,
@@ -326,8 +321,6 @@
             }
             
             document.getElementById('lightning-count').innerText = count;
-
-            // Gán dữ liệu vào biến toàn cục để Nút Xuất Excel lấy
             currentExportData = insidePolygonData;
 
             if (activePolygonLayer) {
@@ -347,7 +340,6 @@
                     tableRowsHtml = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#777;">Không tìm thấy điểm sét nào trong khu vực này.</td></tr>`;
                 }
 
-                // Cập nhật câu chữ và thêm nút bấm gọi hàm exportExcel()
                 const reportContent = `
                     <div style="font-family: Arial; font-size: 12px; width: 420px;">
                         <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">BẢNG PHÂN TÍCH KHÔNG GIAN HẠ TẦNG LƯỚI ĐIỆN</h4>
