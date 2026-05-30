@@ -124,33 +124,30 @@
             "🛰️ Bản đồ Vệ tinh": googleSat
         };
 
-        // 1. Tạo control lớp thu gọn (collapsed: true)
+        // Gán vào biến layerControl để cấu hình Click Mở/Đóng
         const layerControl = L.control.layers(baseMaps, overlayMaps, {collapsed: true, position: 'bottomleft'}).addTo(map);
 
-        // ==================================================
-        // TÙY CHỈNH HÀNH VI ICON LỚP (CLICK ĐỂ BẬT/TẮT)
-        // ==================================================
-        let layersPanelExpanded = false; // Trạng thái bảng lớp
+        // --- YÊU CẦU 2: CẤU HÌNH CLICK ĐỂ MỞ/ĐÓNG ICON LỚP ---
+        const layerContainer = layerControl.getContainer();
+        
+        // Tắt mở tự động khi trượt chuột vào
+        L.DomEvent.off(layerContainer, 'mouseenter', layerControl._expand, layerControl);
+        L.DomEvent.off(layerContainer, 'mouseleave', layerControl._collapse, layerControl);
 
-        // Lấy container của control lớp
-        const layerControlContainer = layerControl.getContainer();
-
-        // Tắt sự kiện hover mặc định của Leaflet (bản đồ không tự ẩn/hiện khi di chuột)
-        L.DomEvent.off(layerControlContainer, 'mouseenter', layerControl._expand, layerControl);
-        L.DomEvent.off(layerControlContainer, 'mouseleave', layerControl._collapse, layerControl);
-
-        // Thêm sự kiện Click vào Icon lớp
-        L.DomEvent.on(layerControl._layersLink, 'click', function (e) {
-            L.DomEvent.stop(e); // Ngăn sự kiện click lan xuống bản đồ
-
-            if (!layersPanelExpanded) {
-                layerControl._expand(); // Hiện bảng
-                layersPanelExpanded = true;
+        let isLayerExpanded = false;
+        
+        // Chỉ khi Click mới mở hoặc đóng bảng
+        L.DomEvent.on(layerControl._layersLink, 'click', function(e) {
+            L.DomEvent.stop(e);
+            if (!isLayerExpanded) {
+                layerControl._expand();
+                isLayerExpanded = true;
             } else {
-                layerControl._collapse(); // Ẩn bảng
-                layersPanelExpanded = false;
+                layerControl._collapse();
+                isLayerExpanded = false;
             }
         });
+        // --------------------------------------------------------
 
         // ==================================================
         // CHỦ QUYỀN VÀ THỦ ĐÔ
@@ -175,7 +172,7 @@
         truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
         // ==========================================
-        // CÔNG CỤ KHOANH VÙNG (Đã xóa nút Edit, giữ nút Xóa)
+        // CÔNG CỤ KHOANH VÙNG 
         // ==========================================
         let allPoleFeatures = []; 
         let currentExportData = [];
@@ -185,11 +182,13 @@
 
         const drawControl = new L.Control.Draw({
             position: 'topleft',
+            // --- YÊU CẦU 1: XÓA NÚT SỬA (BÚT CHÌ), GIỮ NÚT THÙNG RÁC ---
             edit: { 
                 featureGroup: drawnItems,
-                edit: false,   // 2. Xóa icon Sửa (Pencil) chỗ bạn khoanh đỏ
-                remove: true   // Giữ lại icon Xóa (Thùng rác)
+                edit: false, 
+                remove: true 
             },
+            // -----------------------------------------------------------
             draw: {
                 polyline: false, marker: false, circlemarker: false, circle: false,
                 polygon: { allowIntersection: false, showArea: true },
@@ -210,7 +209,13 @@
             filterLightning(); 
         });
 
-        // Bỏ bắt sự kiện EDITED vì không còn nút Edit nữa
+        map.on(L.Draw.Event.EDITED, function (e) {
+            drawnItems.eachLayer(function(layer) {
+                 activePolygonGeoJSON = layer.toGeoJSON();
+                 activePolygonLayer = layer;
+            });
+            filterLightning();
+        });
 
         map.on(L.Draw.Event.DELETED, function (e) {
             if (drawnItems.getLayers().length === 0) {
