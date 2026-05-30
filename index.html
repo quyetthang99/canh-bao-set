@@ -82,7 +82,6 @@
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
     
     <script>
-        // Mở rộng góc nhìn mặc định bao quát toàn tỉnh Lào Cai khi khởi động
         const map = L.map('map').setView([22.3500, 104.0500], 9);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -102,28 +101,23 @@
         // THÊM CHỦ QUYỀN VÀ THỦ ĐÔ NƯỚC CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
         // ==================================================
         
-        // 1. Icon Ngôi sao đỏ cho Thủ đô Hà Nội
         const redStarIcon = L.divIcon({
             html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2" d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"></path></svg>',
             className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
         });
 
-        // 2. Icon Điểm mốc cho Quần đảo Hoàng Sa & Trường Sa
         const islandIcon = L.divIcon({
             html: '<svg width="14" height="14" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2"></circle></svg>',
             className: 'lightning-icon-div', iconSize: [14, 14], iconAnchor: [7, 7]
         });
 
-        // Đặt mốc Hà Nội
         const hanoiMarker = L.marker([21.0285, 105.8542], { icon: redStarIcon }).addTo(map);
         hanoiMarker.bindPopup("<div style='text-align:center; font-weight:bold; font-size:13px;'>THỦ ĐÔ HÀ NỘI</div>");
 
-        // Đặt mốc Hoàng Sa
         const hoangSaMarker = L.marker([16.5000, 112.0000], { icon: islandIcon }).addTo(map);
         hoangSaMarker.bindTooltip("QUẦN ĐẢO HOÀNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
         hoangSaMarker.bindPopup("<div style='text-align:center; font-weight:bold; font-size:13px;'>Quần đảo Hoàng Sa thuộc chủ quyền độc lập của Việt Nam</div>");
 
-        // Đặt mốc Trường Sa
         const truongSaMarker = L.marker([9.5000, 112.5000], { icon: islandIcon }).addTo(map);
         truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
         truongSaMarker.bindPopup("<div style='text-align:center; font-weight:bold; font-size:13px;'>Quần đảo Trường Sa thuộc chủ quyền độc lập của Việt Nam</div>");
@@ -382,7 +376,7 @@
 
                 const reportContent = `
                     <div style="font-family: Arial; font-size: 12px; width: 420px;">
-                        <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">BẢNG PHÂN TÍCH KHÔNG GIAN HẠ TẦNG LƯỚI ĐIỆN</h4>
+                        <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">BẢNG KHOANH VÙNG SÉT</h4>
                         
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <p style="margin: 0;">Tổng số điểm sét trong vùng: <b style="font-size:14px; color:red;">${insidePolygonData.length}</b></p>
