@@ -23,8 +23,6 @@
         .status { font-weight: bold; }
         .popup-custom { max-height: 200px; overflow-y: auto; font-size: 13px; }
         .popup-custom b { color: #0056b3; }
-        
-        /* Chỉnh style cho thanh chọn thời gian */
         .filter-section { margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px; }
         select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #aaa; font-weight: bold; cursor: pointer; }
     </style>
@@ -55,32 +53,26 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
-        // 1. Khởi tạo bản đồ, focus về khu vực Văn Bàn - Lào Cai
-        const map = L.map('map').setView([22.0500, 104.2000], 11);
+        // Mở rộng góc nhìn bao quát toàn tỉnh Lào Cai
+        const map = L.map('map').setView([22.3500, 104.0500], 9);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // 2. Lớp Layer 
         const lightningLayer = L.layerGroup().addTo(map);
         const luoiDienLayer = L.layerGroup().addTo(map);
 
-        // 3. Menu góc phải
         const overlayMaps = {
             "⚡ Cảnh báo Sét đánh": lightningLayer,
             "🔌 Hạ tầng Lưới điện": luoiDienLayer
         };
         L.control.layers(null, overlayMaps, {collapsed: false}).addTo(map);
 
-        // ==========================================
-        // PHẦN 1: TẢI LƯỚI ĐIỆN 
-        // ==========================================
         async function loadLuoiDien() {
             try {
                 const response = await fetch(`./luoidien.json?t=${new Date().getTime()}`);
-                if (!response.ok) return; // Nếu chưa có file lưới điện thì bỏ qua
-                
+                if (!response.ok) return; 
                 const data = await response.json();
                 
                 const geoJsonLayer = L.geoJSON(data, {
@@ -108,31 +100,20 @@
                         }
                     }
                 }).addTo(luoiDienLayer);
-
-                map.fitBounds(geoJsonLayer.getBounds());
             } catch (error) {
                 console.error("Lỗi tải lưới điện:", error);
             }
         }
 
-        // ==========================================
-        // PHẦN 2: DATABASE SÉT VÀ LỌC THỜI GIAN
-        // ==========================================
-        
-        let lightningDatabase = {}; // Biến toàn cục để lưu trữ toàn bộ dữ liệu 1 tuần
+        let lightningDatabase = {}; 
 
-        // Hàm gọi API lấy dữ liệu 1 lần duy nhất mỗi chu kỳ
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
             try {
-                // Tải file DATABASE thay vì file tức thời
                 const response = await fetch(`./database_set.json?t=${new Date().getTime()}`);
                 if (!response.ok) throw new Error("Chưa có Database");
                 
-                // Lưu dữ liệu vào biến toàn cục
                 lightningDatabase = await response.json();
-                
-                // Gọi hàm lọc để vẽ lên bản đồ dựa trên thanh gạt hiện tại
                 filterLightning();
                 
                 statusLabel.innerText = "Hoạt động tốt";
@@ -144,62 +125,66 @@
             }
         }
 
-        // Hàm lọc và vẽ điểm sét khi người dùng đổi lựa chọn thời gian
         function filterLightning() {
-            // Xóa sạch các điểm sét trên bản đồ trước khi vẽ lại
             lightningLayer.clearLayers();
             
-            // 1. Lấy khoảng thời gian chọn (số giây) từ menu Dropdown
             const filterSeconds = parseInt(document.getElementById('time-filter').value);
-            
-            // 2. Lấy mốc thời gian hiện tại của trình duyệt (chuyển đổi Mili-giây sang Giây để khớp với Python)
             const currentSeconds = Date.now() / 1000;
             const threshold = currentSeconds - filterSeconds;
 
             let count = 0;
 
-            // 3. Duyệt qua Database và đối chiếu thời gian
             for (const key in lightningDatabase) {
                 const record = lightningDatabase[key];
-                const info = record.info;
+                const infoArray = record.info; 
                 const timestamp = record.timestamp;
 
-                // Nếu sét đánh SAU mốc thời gian ngưỡng -> Đủ điều kiện hiển thị
                 if (timestamp >= threshold) {
-                    const diaDanh = info[0];
-                    const lat = parseFloat(info[1]);
-                    const lng = parseFloat(info[2]);
-
-                    if (!isNaN(lat) && !isNaN(lng)) {
-                        // Dịch timestamp về giờ VN dễ đọc
-                        const dateObj = new Date(timestamp * 1000);
-                        const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
-
-                        const marker = L.circleMarker([lat, lng], {
-                            radius: 5, fillColor: "#ff1a1a", color: "#ffffff", weight: 1, fillOpacity: 0.9
-                        }).bindPopup(`
-                            <div style="font-family: Arial; font-size: 13px;">
-                                <b style="color:red; font-size:14px;">⚡ ĐIỂM SÉT ĐÁNH</b><hr style="margin:5px 0;">
-                                <b>Khu vực:</b> ${diaDanh}<br>
-                                <b>Tọa độ:</b> ${lat.toFixed(4)}, ${lng.toFixed(4)}<br>
-                                <b>Thời gian ghi nhận:</b> <span style="color:blue; font-weight:bold;">${timeString}</span>
-                            </div>
-                        `);
+                    // Quét từng tia sét trong mảng của cục khí tượng
+                    for(let i = 0; i < infoArray.length; i++) {
+                        const strikeStr = infoArray[i];
+                        if(!strikeStr) continue;
                         
-                        lightningLayer.addLayer(marker);
-                        count++;
+                        // Cắt chuỗi để tách địa danh và tọa độ (dựa vào dấu phẩy cuối cùng)
+                        const parts = strikeStr.split(',');
+                        if(parts.length < 2) continue;
+                        
+                        const coordsStr = parts.pop().trim();
+                        const address = parts.join(', ').trim();
+                        
+                        // Cắt tọa độ bằng dấu gạch ngang (-) để lấy Vĩ độ và Kinh độ
+                        const coordParts = coordsStr.split('-');
+                        if(coordParts.length !== 2) continue;
+                        
+                        const lat = parseFloat(coordParts[0]);
+                        const lng = parseFloat(coordParts[1]);
+
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            const dateObj = new Date(timestamp * 1000);
+                            const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
+
+                            const marker = L.circleMarker([lat, lng], {
+                                radius: 5, fillColor: "#ff1a1a", color: "#ffffff", weight: 1, fillOpacity: 0.9
+                            }).bindPopup(`
+                                <div style="font-family: Arial; font-size: 13px;">
+                                    <b style="color:red; font-size:14px;">⚡ ĐIỂM SÉT ĐÁNH</b><hr style="margin:5px 0;">
+                                    <b>Khu vực:</b> ${address}<br>
+                                    <b>Tọa độ:</b> ${lat.toFixed(4)}, ${lng.toFixed(4)}<br>
+                                    <b>Thời gian ghi nhận:</b> <span style="color:blue; font-weight:bold;">${timeString}</span>
+                                </div>
+                            `);
+                            
+                            lightningLayer.addLayer(marker);
+                            count++;
+                        }
                     }
                 }
             }
-            // Cập nhật lại bộ đếm số lượng tia sét đang hiển thị
             document.getElementById('lightning-count').innerText = count;
         }
 
-        // Khởi động chạy 
         loadLuoiDien();
         fetchLightningData();
-        
-        // Quét cập nhật dữ liệu sét ngầm mỗi 3 phút
         setInterval(fetchLightningData, 180000);
     </script>
 </body>
