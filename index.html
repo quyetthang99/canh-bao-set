@@ -112,7 +112,6 @@
             "⚡ Cảnh báo Sét đánh": lightningLayer
         };
 
-        // Khởi tạo và BẬT MẶC ĐỊNH (.addTo(map)) cho toàn bộ 13 Điện lực
         for (let key in dienLucList) {
             gridLayers[key] = L.layerGroup().addTo(map); 
             overlayMaps[key] = gridLayers[key];
@@ -124,8 +123,46 @@
             "🛰️ Bản đồ Vệ tinh": googleSat
         };
 
-        // Đã sửa collapsed thành true để tạo icon menu trượt trên mobile
-        L.control.layers(baseMaps, overlayMaps, {collapsed: true, position: 'bottomleft'}).addTo(map);
+        const layerControl = L.control.layers(baseMaps, overlayMaps, {collapsed: true, position: 'bottomleft'}).addTo(map);
+
+        // ==================================================
+        // TÙY CHỈNH NÚT QUẢN LÝ LỚP 
+        // ==================================================
+        const layerContainer = layerControl.getContainer();
+        
+        L.DomEvent.off(layerContainer, 'mouseenter', layerControl._expand, layerControl);
+        L.DomEvent.off(layerContainer, 'mouseleave', layerControl._collapse, layerControl);
+
+        let isLayerExpanded = false;
+
+        L.DomEvent.on(layerControl._layersLink, 'click', function(e) {
+            L.DomEvent.stop(e);
+            if (!isLayerExpanded) {
+                layerControl._expand();
+                isLayerExpanded = true;
+            }
+        });
+
+        const closeBtn = document.createElement('div');
+        closeBtn.innerHTML = '✖ Đóng danh sách lớp';
+        closeBtn.style.cssText = 'background: #f1f1f1; color: #d32f2f; text-align: center; padding: 6px; margin-bottom: 8px; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 13px; border: 1px solid #ddd; transition: 0.2s;';
+        closeBtn.onmouseover = function() { this.style.background = '#e0e0e0'; };
+        closeBtn.onmouseout = function() { this.style.background = '#f1f1f1'; };
+        
+        layerControl._form.insertBefore(closeBtn, layerControl._form.firstChild);
+
+        L.DomEvent.on(closeBtn, 'click', function(e) {
+            L.DomEvent.stop(e);
+            layerControl._collapse();
+            isLayerExpanded = false;
+        });
+
+        map.on('click', function() {
+            if (isLayerExpanded) {
+                layerControl._collapse();
+                isLayerExpanded = false;
+            }
+        });
 
         // ==================================================
         // CHỦ QUYỀN VÀ THỦ ĐÔ
@@ -150,7 +187,7 @@
         truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
         // ==========================================
-        // CÔNG CỤ KHOANH VÙNG 
+        // CÔNG CỤ KHOANH VÙNG (Đã xóa nút Edit)
         // ==========================================
         let allPoleFeatures = []; 
         let currentExportData = [];
@@ -160,7 +197,11 @@
 
         const drawControl = new L.Control.Draw({
             position: 'topleft',
-            edit: { featureGroup: drawnItems },
+            edit: { 
+                featureGroup: drawnItems,
+                edit: false, // TẮT NÚT EDIT
+                remove: true // GIỮ LẠI NÚT XÓA
+            },
             draw: {
                 polyline: false, marker: false, circlemarker: false, circle: false,
                 polygon: { allowIntersection: false, showArea: true },
@@ -181,13 +222,7 @@
             filterLightning(); 
         });
 
-        map.on(L.Draw.Event.EDITED, function (e) {
-            drawnItems.eachLayer(function(layer) {
-                 activePolygonGeoJSON = layer.toGeoJSON();
-                 activePolygonLayer = layer;
-            });
-            filterLightning();
-        });
+        // Bỏ bắt sự kiện EDITED vì không còn nút Edit nữa
 
         map.on(L.Draw.Event.DELETED, function (e) {
             if (drawnItems.getLayers().length === 0) {
@@ -246,9 +281,7 @@
                             }
                         }).addTo(gridLayers[key]);
                     }
-                } catch (error) {
-                    // Tự động bỏ qua nếu file chưa được đẩy lên
-                }
+                } catch (error) {}
             }
         }
 
