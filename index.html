@@ -124,8 +124,33 @@
             "🛰️ Bản đồ Vệ tinh": googleSat
         };
 
-        // Đã sửa collapsed thành true để tạo icon menu trượt trên mobile
-        L.control.layers(baseMaps, overlayMaps, {collapsed: true, position: 'bottomleft'}).addTo(map);
+        // 1. Tạo control lớp thu gọn (collapsed: true)
+        const layerControl = L.control.layers(baseMaps, overlayMaps, {collapsed: true, position: 'bottomleft'}).addTo(map);
+
+        // ==================================================
+        // TÙY CHỈNH HÀNH VI ICON LỚP (CLICK ĐỂ BẬT/TẮT)
+        // ==================================================
+        let layersPanelExpanded = false; // Trạng thái bảng lớp
+
+        // Lấy container của control lớp
+        const layerControlContainer = layerControl.getContainer();
+
+        // Tắt sự kiện hover mặc định của Leaflet (bản đồ không tự ẩn/hiện khi di chuột)
+        L.DomEvent.off(layerControlContainer, 'mouseenter', layerControl._expand, layerControl);
+        L.DomEvent.off(layerControlContainer, 'mouseleave', layerControl._collapse, layerControl);
+
+        // Thêm sự kiện Click vào Icon lớp
+        L.DomEvent.on(layerControl._layersLink, 'click', function (e) {
+            L.DomEvent.stop(e); // Ngăn sự kiện click lan xuống bản đồ
+
+            if (!layersPanelExpanded) {
+                layerControl._expand(); // Hiện bảng
+                layersPanelExpanded = true;
+            } else {
+                layerControl._collapse(); // Ẩn bảng
+                layersPanelExpanded = false;
+            }
+        });
 
         // ==================================================
         // CHỦ QUYỀN VÀ THỦ ĐÔ
@@ -150,7 +175,7 @@
         truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
         // ==========================================
-        // CÔNG CỤ KHOANH VÙNG 
+        // CÔNG CỤ KHOANH VÙNG (Đã xóa nút Edit, giữ nút Xóa)
         // ==========================================
         let allPoleFeatures = []; 
         let currentExportData = [];
@@ -160,7 +185,11 @@
 
         const drawControl = new L.Control.Draw({
             position: 'topleft',
-            edit: { featureGroup: drawnItems },
+            edit: { 
+                featureGroup: drawnItems,
+                edit: false,   // 2. Xóa icon Sửa (Pencil) chỗ bạn khoanh đỏ
+                remove: true   // Giữ lại icon Xóa (Thùng rác)
+            },
             draw: {
                 polyline: false, marker: false, circlemarker: false, circle: false,
                 polygon: { allowIntersection: false, showArea: true },
@@ -181,13 +210,7 @@
             filterLightning(); 
         });
 
-        map.on(L.Draw.Event.EDITED, function (e) {
-            drawnItems.eachLayer(function(layer) {
-                 activePolygonGeoJSON = layer.toGeoJSON();
-                 activePolygonLayer = layer;
-            });
-            filterLightning();
-        });
+        // Bỏ bắt sự kiện EDITED vì không còn nút Edit nữa
 
         map.on(L.Draw.Event.DELETED, function (e) {
             if (drawnItems.getLayers().length === 0) {
