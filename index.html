@@ -112,7 +112,7 @@
             "⚡ Cảnh báo Sét đánh": lightningLayer
         };
 
-        // Bật mặc định tất cả 13 Điện lực
+        // Khởi tạo và BẬT MẶC ĐỊNH (.addTo(map)) cho toàn bộ 13 Điện lực
         for (let key in dienLucList) {
             gridLayers[key] = L.layerGroup().addTo(map); 
             overlayMaps[key] = gridLayers[key];
@@ -124,44 +124,8 @@
             "🛰️ Bản đồ Vệ tinh": googleSat
         };
 
-        // Tạo bảng Layer Control thu gọn
-        const layerControl = L.control.layers(baseMaps, overlayMaps, {collapsed: true, position: 'bottomleft'}).addTo(map);
-
-        // ==================================================
-        // TÙY CHỈNH NÚT QUẢN LÝ LỚP (CƠ CHẾ AN TOÀN TRÁNH LỖI)
-        // ==================================================
-        const layerContainer = layerControl.getContainer();
-        
-        // Hủy tự động mở bằng hover chuột
-        L.DomEvent.off(layerContainer, 'mouseenter', layerControl._expand, layerControl);
-        L.DomEvent.off(layerContainer, 'mouseleave', layerControl._collapse, layerControl);
-
-        // Mở bảng khi click vào icon
-        L.DomEvent.on(layerControl._layersLink, 'click', function(e) {
-            L.DomEvent.stop(e);
-            layerControl._expand();
-        });
-
-        // Dùng setTimeout để đảm bảo DOM của Leaflet được tạo xong mới chèn nút Đóng (Tránh sập web)
-        setTimeout(() => {
-            if (layerControl._section) {
-                const closeBtn = document.createElement('div');
-                closeBtn.innerHTML = '✖ Đóng bảng lớp';
-                closeBtn.style.cssText = 'background: #ffeeee; color: #d32f2f; text-align: center; padding: 6px; margin-bottom: 8px; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 13px; border: 1px solid #ffcccc;';
-                layerControl._section.insertBefore(closeBtn, layerControl._section.firstChild);
-
-                // Nhấn nút X để đóng
-                L.DomEvent.on(closeBtn, 'click', function(e) {
-                    L.DomEvent.stop(e);
-                    layerControl._collapse();
-                });
-            }
-        }, 500);
-
-        // Click ra khoảng trống ngoài bản đồ tự động đóng bảng lớp
-        map.on('click', function() {
-            layerControl._collapse();
-        });
+        // Đã sửa collapsed thành true để tạo icon menu trượt trên mobile
+        L.control.layers(baseMaps, overlayMaps, {collapsed: true, position: 'bottomleft'}).addTo(map);
 
         // ==================================================
         // CHỦ QUYỀN VÀ THỦ ĐÔ
@@ -186,7 +150,7 @@
         truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
         // ==========================================
-        // CÔNG CỤ KHOANH VÙNG (Đã xóa nút Edit, giữ nút Xóa)
+        // CÔNG CỤ KHOANH VÙNG 
         // ==========================================
         let allPoleFeatures = []; 
         let currentExportData = [];
@@ -196,11 +160,7 @@
 
         const drawControl = new L.Control.Draw({
             position: 'topleft',
-            edit: { 
-                featureGroup: drawnItems,
-                edit: false, // Ẩn hoàn toàn nút Bút chì
-                remove: true // Giữ nút Thùng rác
-            },
+            edit: { featureGroup: drawnItems },
             draw: {
                 polyline: false, marker: false, circlemarker: false, circle: false,
                 polygon: { allowIntersection: false, showArea: true },
@@ -219,6 +179,14 @@
             activePolygonGeoJSON = layer.toGeoJSON();
             activePolygonLayer = layer;
             filterLightning(); 
+        });
+
+        map.on(L.Draw.Event.EDITED, function (e) {
+            drawnItems.eachLayer(function(layer) {
+                 activePolygonGeoJSON = layer.toGeoJSON();
+                 activePolygonLayer = layer;
+            });
+            filterLightning();
         });
 
         map.on(L.Draw.Event.DELETED, function (e) {
@@ -278,7 +246,9 @@
                             }
                         }).addTo(gridLayers[key]);
                     }
-                } catch (error) {}
+                } catch (error) {
+                    // Tự động bỏ qua nếu file chưa được đẩy lên
+                }
             }
         }
 
