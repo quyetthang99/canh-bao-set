@@ -1,4 +1,73 @@
+import os
+import glob
 import geopandas as gpd
+import pandas as pd
+import tempfile
+import zipfile
+
+# Quét tìm TẤT CẢ các file .zip có trong thư mục hiện tại
+zip_files = glob.glob("*.zip")
+
+if not zip_files:
+    print("Không tìm thấy file .zip nào để xử lý.")
+else:
+    print(f"Tìm thấy {len(zip_files)} file .zip. Bắt đầu quá trình chuyển đổi hàng loạt...")
+
+for zip_file in zip_files:
+    # Lấy tên gốc của file zip (VD: 'lucyen.zip' -> 'lucyen')
+    base_name = os.path.splitext(zip_file)[0]
+    
+    # Giữ nguyên quy tắc cũ cho file Văn Bàn để không lỗi web, các huyện khác lấy đúng tên
+    if base_name == "luoi_dien":
+        out_json = "luoidien.json"
+    else:
+        out_json = f"{base_name}.json"
+
+    print(f"\n▶ Đang xử lý file: {zip_file} -> Xuất ra: {out_json}")
+
+    try:
+        # Tạo thư mục tạm thời để giải nén an toàn
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+                zip_ref.extractall(tmpdir)
+
+            # Tìm tất cả các lớp bản đồ .shp bên trong file zip
+            shp_files = glob.glob(os.path.join(tmpdir, "**", "*.shp"), recursive=True)
+
+            if not shp_files:
+                print(f"  [Cảnh báo] Không tìm thấy lớp Shapefile (.shp) nào trong {zip_file}")
+                continue
+
+            print(f"  Đã tìm thấy {len(shp_files)} lớp dữ liệu (Cột, Trạm, Đoạn dây...). Đang gộp...")
+
+            gdf_list = []
+            for shp in shp_files:
+                try:
+                    # Đọc file shp
+                    gdf = gpd.read_file(shp)
+                    
+                    # Ép chuẩn tọa độ về WGS84 (EPSG:4326) để hiển thị chuẩn trên bản đồ web
+                    if gdf.crs is None or gdf.crs.to_epsg() != 4326:
+                        gdf = gdf.to_crs(epsg=4326)
+                        
+                    gdf_list.append(gdf)
+                    print(f"  - Đã xử lý xong: {os.path.basename(shp)}")
+                except Exception as e:
+                    print(f"  - [Bỏ qua] Lớp {os.path.basename(shp)} bị lỗi hoặc trống: {e}")
+
+            # Tiến hành gộp và xuất ra GeoJSON
+            if gdf_list:
+                merged_gdf = pd.concat(gdf_list, ignore_index=True)
+                merged_gdf = gpd.GeoDataFrame(merged_gdf, geometry='geometry')
+                merged_gdf.to_file(out_json, driver="GeoJSON")
+                print(f"  ✅ Tuyệt vời! Đã nén toàn bộ hạ tầng vào {out_json} thành công.")
+            else:
+                print(f"  [Cảnh báo] File {zip_file} không có dữ liệu hợp lệ để gộp.")
+
+    except Exception as e:
+        print(f"  [Lỗi hệ thống] Khi xử lý {zip_file}: {e}")
+
+print("\n🎉 KẾT THÚC QUÁ TRÌNH CHUYỂN ĐỔI.")import geopandas as gpd
 import pandas as pd
 import os
 import zipfile
