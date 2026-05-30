@@ -12,7 +12,7 @@
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #map { width: 100%; height: 100vh; }
         .info-panel {
-            position: absolute; top: 15px; right: 50px; /* Đổi sang góc phải để nhường chỗ cho thanh công cụ vẽ bên trái */
+            position: absolute; top: 15px; right: 50px;
             background: rgba(255, 255, 255, 0.95); padding: 15px;
             border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             z-index: 1000; width: 260px;
@@ -24,8 +24,8 @@
         .filter-section { margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px; }
         select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #aaa; font-weight: bold; cursor: pointer; }
         
-        .lightning-icon-div { cursor: pointer; filter: drop-shadow(0 0 2px rgba(0,0,0,0.5)); transition: transform 0.2s; }
-        .lightning-icon-div:hover { transform: scale(1.3); }
+        .lightning-icon-div { cursor: pointer; filter: drop-shadow(0 0 2px rgba(0,0,0,0.8)); transition: transform 0.2s; }
+        .lightning-icon-div:hover { transform: scale(1.4); }
     </style>
 </head>
 <body>
@@ -48,7 +48,7 @@
             </select>
         </div>
         <div style="margin-top: 10px; font-size: 12px; color: #666;">
-            <i>* Sử dụng thanh công cụ bên trái để vẽ hình khoanh vùng Lưới điện.</i>
+            <i>* Sử dụng thanh công cụ bên trái để khoanh vùng kiểm tra Lưới điện.</i>
         </div>
     </div>
 
@@ -72,11 +72,10 @@
             "⚡ Cảnh báo Sét đánh": lightningLayer,
             "🔌 Hạ tầng Lưới điện": luoiDienLayer
         };
-        // Chuyển menu layer sang góc trái dưới để không đè lên bảng Info
         L.control.layers(null, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
 
         // ==========================================
-        // CẤU HÌNH CÔNG CỤ KHOANH VÙNG (LEAFLET DRAW)
+        // CÔNG CỤ KHOANH VÙNG 
         // ==========================================
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
@@ -86,34 +85,26 @@
             edit: { featureGroup: drawnItems },
             draw: {
                 polyline: false, marker: false, circlemarker: false, circle: false,
-                polygon: { allowIntersection: false, showArea: true }, // Công cụ vẽ đa giác tự do
-                rectangle: true // Công cụ vẽ hình chữ nhật
+                polygon: { allowIntersection: false, showArea: true },
+                rectangle: true
             }
         });
         map.addControl(drawControl);
 
-        let activePolygonGeoJSON = null; // Biến lưu trữ hình khoanh vùng hiện tại
+        let activePolygonGeoJSON = null; 
         let activePolygonLayer = null;
 
-        // Bắt sự kiện khi người dùng VẼ XONG một hình
         map.on(L.Draw.Event.CREATED, function (e) {
-            drawnItems.clearLayers(); // Xóa khung cũ đi, chỉ cho phép 1 vùng mỗi lần để tránh rối
+            drawnItems.clearLayers(); 
             const layer = e.layer;
             drawnItems.addLayer(layer);
-            
-            // Chuyển hình vừa vẽ thành định dạng chuẩn GeoJSON để tính toán
             activePolygonGeoJSON = layer.toGeoJSON();
             activePolygonLayer = layer;
-            
-            // Gọi lại hàm vẽ sét (nó sẽ tự động lọc những tia sét nằm trong vùng này)
             filterLightning(); 
-            
-            // Hiện popup báo cáo số lượng
             const currentCount = document.getElementById('lightning-count').innerText;
-            layer.bindPopup(`<div style="text-align:center"><b style='color:red; font-size:16px;'>CẢNH BÁO VÙNG</b><br>Khu vực này có <b>${currentCount}</b> điểm sét đánh!</div>`).openPopup();
+            layer.bindPopup(`<div style="text-align:center"><b style='color:red; font-size:16px;'>CẢNH BÁO VÙNG</b><br>Phát hiện <b>${currentCount}</b> điểm sét!</div>`).openPopup();
         });
 
-        // Bắt sự kiện khi người dùng SỬA HÌNH
         map.on(L.Draw.Event.EDITED, function (e) {
             drawnItems.eachLayer(function(layer) {
                  activePolygonGeoJSON = layer.toGeoJSON();
@@ -121,31 +112,30 @@
             });
             filterLightning();
             const currentCount = document.getElementById('lightning-count').innerText;
-            activePolygonLayer.bindPopup(`<div style="text-align:center"><b style='color:red; font-size:16px;'>CẢNH BÁO VÙNG</b><br>Khu vực này có <b>${currentCount}</b> điểm sét đánh!</div>`).openPopup();
+            activePolygonLayer.bindPopup(`<div style="text-align:center"><b style='color:red; font-size:16px;'>CẢNH BÁO VÙNG</b><br>Phát hiện <b>${currentCount}</b> điểm sét!</div>`).openPopup();
         });
 
-        // Bắt sự kiện khi người dùng XÓA HÌNH
         map.on(L.Draw.Event.DELETED, function (e) {
             if (drawnItems.getLayers().length === 0) {
                 activePolygonGeoJSON = null;
                 activePolygonLayer = null;
             }
-            filterLightning(); // Hiển thị lại toàn bộ sét
+            filterLightning();
         });
 
         // ==========================================
-        // ICON VÀ GIAO DIỆN SÉT
+        // ICON SÉT ĐỎ DUY NHẤT (SVG)
         // ==========================================
-        const groundLightningIcon = L.divIcon({
-            html: '<svg width="20" height="20" viewBox="0 0 24 24"><path fill="#ff1a1a" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>',
-            className: 'lightning-icon-div', iconSize: [20, 20], iconAnchor: [10, 10], popupAnchor: [0, -10]
+        const lightningIconRed = L.divIcon({
+            // Tăng size lên một chút (24x24) để dễ nhìn
+            html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>',
+            className: 'lightning-icon-div', 
+            iconSize: [24, 24], 
+            iconAnchor: [12, 12], 
+            popupAnchor: [0, -12]
         });
 
-        const cloudLightningIcon = L.divIcon({
-            html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#90a4ae" d="M19,10A6.5,6.5 0 0,0 12.5,3.5C10.74,3.5 9.15,4.19 7.95,5.32A5,5 0 0,0 3,10A5,5 0 0,0 8,15H17.5A4.5,4.5 0 0,0 22,10.5A4.5,4.5 0 0,1 17.5,15A5,5 0 0,0 19,10" opacity="0.9"></path><path fill="#fdd835" d="M12,17L10,21h2v3l3-4h-2L12,17z"></path></svg>',
-            className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]
-        });
-
+        // TẢI LƯỚI ĐIỆN
         async function loadLuoiDien() {
             try {
                 const response = await fetch(`./luoidien.json?t=${new Date().getTime()}`);
@@ -195,6 +185,9 @@
             }
         }
 
+        // ==========================================
+        // HÀM LỌC VÀ VẼ SÉT (ĐÃ TINH GIẢN)
+        // ==========================================
         function filterLightning() {
             lightningLayer.clearLayers();
             
@@ -227,53 +220,33 @@
 
                         if (!isNaN(lat) && !isNaN(lng)) {
                             
-                            // ==========================================
-                            // BỘ LỌC KHÔNG GIAN (TURF.JS)
-                            // Kiểm tra xem tia sét này có nằm trong vùng đã khoanh không
-                            // ==========================================
+                            // BỘ LỌC KHÔNG GIAN (Giữ nguyên)
                             if (activePolygonGeoJSON) {
-                                const pt = turf.point([lng, lat]); // Turf dùng chuẩn [Kinh độ, Vĩ độ]
+                                const pt = turf.point([lng, lat]); 
                                 if (!turf.booleanPointInPolygon(pt, activePolygonGeoJSON)) {
-                                    continue; // Nếu sét nằm NGOÀI vùng khoanh -> Bỏ qua, không vẽ
+                                    continue; 
                                 }
-                            }
-
-                            const fakeSeed = Math.abs(Math.round((lat * 1000) + (lng * 1000)));
-                            let intensity = (fakeSeed % 160) - 80; 
-                            if (intensity === 0) intensity = -15;
-                            
-                            const isGround = (fakeSeed % 10) < 7;
-                            const strikeType = isGround ? "ground" : "cloud";
-
-                            let chosenIcon = groundLightningIcon;
-                            let typeText = "Sét mặt đất (CG)";
-                            let typeColor = "red";
-
-                            if (strikeType === "cloud") {
-                                chosenIcon = cloudLightningIcon;
-                                typeText = "Sét trong mây (IC)";
-                                typeColor = "#e6b800"; 
                             }
 
                             const dateObj = new Date(timestamp * 1000);
                             const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
 
+                            // NỘI DUNG BẢNG THÔNG TIN (Chỉ giữ lại dữ liệu xác thực)
                             const popupHTML = `
                                 <div style="font-family: Arial; font-size: 13px; width: 220px; line-height: 1.5;">
-                                    <b style="color:${typeColor}; font-size:14px;">⚡ ${typeText.toUpperCase()}</b><hr style="margin:5px 0;">
+                                    <b style="color:red; font-size:14px;">⚡ ĐIỂM SÉT ĐÁNH</b><hr style="margin:5px 0;">
                                     <b>Khu vực:</b> ${address}<br>
                                     <b>Tọa độ:</b> ${lat.toFixed(4)}, ${lng.toFixed(4)}<br>
-                                    <b style="color: purple;">Giá trị dòng điện:</b> <span style="font-size: 14px; font-weight: bold; color: ${intensity < 0 ? 'red' : 'green'};">${intensity} kA</span><br>
-                                    <b>Loại sét:</b> ${typeText}<br>
-                                    <b>Thời gian:</b> <span style="color:blue;">${timeString}</span>
+                                    <b>Thời gian:</b> <span style="color:blue; font-weight:bold;">${timeString}</span>
                                 </div>
                             `;
 
+                            // Vẽ MARKER VỚI ICON ĐỎ DUY NHẤT
                             const marker = L.marker([lat, lng], {
-                                icon: chosenIcon
+                                icon: lightningIconRed
                             })
-                            .bindPopup(popupHTML)
-                            .bindTooltip(popupHTML, {
+                            .bindPopup(popupHTML) // Click để hiện
+                            .bindTooltip(popupHTML, { // Rê chuột để hiện
                                 direction: 'top', 
                                 offset: [0, -15], 
                                 opacity: 0.95      
