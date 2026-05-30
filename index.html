@@ -28,7 +28,6 @@
         .lightning-icon-div { cursor: pointer; filter: drop-shadow(0 0 2px rgba(0,0,0,0.8)); transition: transform 0.2s; }
         .lightning-icon-div:hover { transform: scale(1.4); }
         
-        /* Style cho nút bấm Excel */
         .btn-excel {
             background-color: #28a745; color: white; border: none; padding: 6px 12px;
             border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;
@@ -36,16 +35,10 @@
         }
         .btn-excel:hover { background-color: #218838; }
 
-        /* Style nhãn tên Quần đảo chủ quyền */
         .island-label {
-            font-weight: bold;
-            color: #bd0000;
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid #bd0000;
-            border-radius: 4px;
-            font-size: 12px;
-            padding: 4px 6px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            font-weight: bold; color: #bd0000; background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #bd0000; border-radius: 4px; font-size: 12px;
+            padding: 4px 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
         }
     </style>
 </head>
@@ -61,6 +54,7 @@
         <div class="filter-section">
             <label for="time-filter"><b>Lọc theo thời gian:</b></label>
             <select id="time-filter" onchange="filterLightning()">
+                <option value="600">10 Phút qua</option>
                 <option value="1800">30 Phút qua</option>
                 <option value="7200">2 Giờ qua</option>
                 <option value="21600">6 Giờ qua</option>
@@ -71,7 +65,7 @@
             </select>
         </div>
         <div style="margin-top: 10px; font-size: 12px; color: #666;">
-            <i>* Sử dụng thanh công cụ bên trái để khoanh vùng kiểm tra Lưới điện.</i>
+            <i>* Quản lý lớp Điện lực, Hành chính, Bản đồ nền ở góc trái dưới màn hình.</i>
         </div>
     </div>
 
@@ -82,25 +76,72 @@
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
     
     <script>
-        const map = L.map('map').setView([22.3500, 104.0500], 9);
+        // ==================================================
+        // CẤU HÌNH CÁC LỚP BẢN ĐỒ NỀN (BASEMAPS)
+        // ==================================================
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
+        const googleStreets = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20, attribution: '© Google Giao thông' });
+        const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', { maxZoom: 20, attribution: '© Google Vệ tinh' });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+        // Điều chỉnh tâm bản đồ về giữa Lào Cai và Yên Bái để nhìn tổng quan tốt hơn
+        const map = L.map('map', {
+            center: [22.0000, 104.5000],
+            zoom: 8,
+            layers: [osmLayer] 
+        });
 
         const lightningLayer = L.layerGroup().addTo(map);
-        const luoiDienLayer = L.layerGroup().addTo(map);
-
-        const overlayMaps = {
-            "⚡ Cảnh báo Sét đánh": lightningLayer,
-            "🔌 Hạ tầng Lưới điện": luoiDienLayer
-        };
-        L.control.layers(null, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
-
-        // ==================================================
-        // THÊM CHỦ QUYỀN VÀ THỦ ĐÔ 
-        // ==================================================
         
+        const hanhChinhCuLayer = L.layerGroup();
+        const hanhChinhMoiLayer = L.layerGroup();
+
+        // Danh sách 13 Điện lực chuẩn hóa theo yêu cầu
+        const dienLucList = {
+            // Nhóm Điện lực Lào Cai
+            "🔌 ĐL Văn Bàn": "luoidien.json", // Giữ nguyên file gốc để bảo toàn dữ liệu đang chạy
+            "🔌 ĐL Lào Cai": "laocai.json",
+            "🔌 ĐL SaPa": "sapa.json",
+            "🔌 ĐL Bát Xát": "batxat.json",
+            "🔌 ĐL Bắc Hà": "bacha.json",
+            "🔌 ĐL Bảo Thắng": "baothang.json",
+            "🔌 ĐL Bảo Yên": "baoyen.json",
+            "🔌 ĐL Mường Khương": "muongkhuong.json",
+            // Nhóm Điện lực Yên Bái
+            "🔌 ĐL Yên Bái": "yenbai.json",
+            "🔌 ĐL Trấn Yên": "tranyen.json",
+            "🔌 ĐL Văn Yên": "vanyen.json",
+            "🔌 ĐL Lục Yên": "lucyen.json",
+            "🔌 ĐL Nghĩa Lộ": "nghialo.json"
+        };
+
+        const gridLayers = {};
+        const overlayMaps = {
+            "⚡ Cảnh báo Sét đánh": lightningLayer
+        };
+
+        // Khởi tạo các lớp tự động cho 13 Điện lực
+        for (let key in dienLucList) {
+            gridLayers[key] = L.layerGroup();
+            overlayMaps[key] = gridLayers[key];
+        }
+
+        overlayMaps["📍 Hành chính (Trước sáp nhập)"] = hanhChinhCuLayer;
+        overlayMaps["📍 Hành chính (Sau sáp nhập)"] = hanhChinhMoiLayer;
+
+        const baseMaps = {
+            "🗺️ Bản đồ Tiêu chuẩn": osmLayer,
+            "🚗 Bản đồ Giao thông": googleStreets,
+            "🛰️ Bản đồ Vệ tinh": googleSat
+        };
+
+        // Bật hiển thị sẵn lớp Điện lực Văn Bàn đang có dữ liệu
+        gridLayers["🔌 ĐL Văn Bàn"].addTo(map);
+
+        L.control.layers(baseMaps, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
+
+        // ==================================================
+        // CHỦ QUYỀN VÀ THỦ ĐÔ
+        // ==================================================
         const redStarIcon = L.divIcon({
             html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2" d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"></path></svg>',
             className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
@@ -116,16 +157,14 @@
 
         const hoangSaMarker = L.marker([16.5000, 112.0000], { icon: islandIcon }).addTo(map);
         hoangSaMarker.bindTooltip("QUẦN ĐẢO HOÀNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
-        hoangSaMarker.bindPopup("<div style='text-align:center; font-weight:bold; font-size:13px;'>Quần đảo Hoàng Sa thuộc chủ quyền độc lập của Việt Nam</div>");
-
+        
         const truongSaMarker = L.marker([9.5000, 112.5000], { icon: islandIcon }).addTo(map);
         truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
-        truongSaMarker.bindPopup("<div style='text-align:center; font-weight:bold; font-size:13px;'>Quần đảo Trường Sa thuộc chủ quyền độc lập của Việt Nam</div>");
 
         // ==========================================
-        // CẤU HÌNH CÔNG CỤ KHOANH VÙNG 
+        // CÔNG CỤ KHOANH VÙNG 
         // ==========================================
-        let poleFeatures = [];
+        let allPoleFeatures = []; 
         let currentExportData = [];
 
         const drawnItems = new L.FeatureGroup();
@@ -181,41 +220,75 @@
             for (let key of priorityKeys) {
                 if (properties[key]) return properties[key];
             }
-            for (let key in properties) {
-                if (typeof properties[key] === 'string' && properties[key].length > 0) return properties[key];
-            }
             return "Cột chưa đặt tên";
         }
 
-        async function loadLuoiDien() {
-            try {
-                const response = await fetch(`./luoidien.json?t=${new Date().getTime()}`);
-                if (!response.ok) return; 
-                const data = await response.json();
-                
-                poleFeatures = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
+        // ==========================================
+        // TẢI DỮ LIỆU ĐỊA LÝ TOÀN HỆ THỐNG
+        // ==========================================
+        async function loadGeoData() {
+            
+            // Duyệt qua toàn bộ danh sách 13 file của các Điện lực
+            for (let key in dienLucList) {
+                let fileName = dienLucList[key];
+                try {
+                    const response = await fetch(`./${fileName}?t=${new Date().getTime()}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Tập hợp các điểm cột điện để đồng bộ thuật toán không gian liên vùng
+                        let poles = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
+                        allPoleFeatures.push(...poles);
 
-                L.geoJSON(data, {
-                    style: function (feature) {
-                        if (feature.geometry.type === "LineString" || feature.geometry.type === "MultiLineString") {
-                            return { color: "#0056b3", weight: 3, opacity: 0.8 }; 
-                        } return {};
-                    },
-                    pointToLayer: function (feature, latlng) {
-                        return L.circleMarker(latlng, { radius: 5, fillColor: "#ff8c00", color: "#ffffff", weight: 1, fillOpacity: 0.9 });
-                    },
-                    onEachFeature: function (feature, layer) {
-                        if (feature.properties) {
-                            let popupContent = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
-                            for (const key in feature.properties) {
-                                if(feature.properties[key] !== null) popupContent += `<b>${key}:</b> ${feature.properties[key]}<br>`;
+                        L.geoJSON(data, {
+                            style: function (feature) {
+                                if (feature.geometry.type === "LineString" || feature.geometry.type === "MultiLineString") {
+                                    return { color: "#0056b3", weight: 3, opacity: 0.8 }; 
+                                } return {};
+                            },
+                            pointToLayer: function (feature, latlng) {
+                                return L.circleMarker(latlng, { radius: 5, fillColor: "#ff8c00", color: "#ffffff", weight: 1, fillOpacity: 0.9 });
+                            },
+                            onEachFeature: function (feature, layer) {
+                                if (feature.properties) {
+                                    let popupContent = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
+                                    for (const propKey in feature.properties) {
+                                        if(feature.properties[propKey] !== null) popupContent += `<b>${propKey}:</b> ${feature.properties[propKey]}<br>`;
+                                    }
+                                    popupContent += "</div>";
+                                    layer.bindPopup(popupContent);
+                                }
                             }
-                            popupContent += "</div>";
-                            layer.bindPopup(popupContent);
-                        }
+                        }).addTo(gridLayers[key]);
                     }
-                }).addTo(luoiDienLayer);
-            } catch (error) { console.error("Lỗi tải lưới điện:", error); }
+                } catch (error) {
+                    // Tự động bỏ qua nếu file chưa được đẩy lên kho GitHub
+                }
+            }
+
+            // Tải ranh giới hành chính cũ
+            try {
+                const resCu = await fetch(`./hanhchinh_cu.json?t=${new Date().getTime()}`);
+                if (resCu.ok) {
+                    const dataCu = await resCu.json();
+                    L.geoJSON(dataCu, {
+                        style: { color: "#795548", weight: 2, fillOpacity: 0.1, dashArray: '5, 5' },
+                        onEachFeature: function(f, l) { if(f.properties && f.properties.Ten) l.bindTooltip(f.properties.Ten, {permanent: false}); }
+                    }).addTo(hanhChinhCuLayer);
+                }
+            } catch (error) {}
+
+            // Tải ranh giới hành chính mới
+            try {
+                const resMoi = await fetch(`./hanhchinh_moi.json?t=${new Date().getTime()}`);
+                if (resMoi.ok) {
+                    const dataMoi = await resMoi.json();
+                    L.geoJSON(dataMoi, {
+                        style: { color: "#2e7d32", weight: 2.5, fillOpacity: 0.1 },
+                        onEachFeature: function(f, l) { if(f.properties && f.properties.Ten) l.bindTooltip(f.properties.Ten, {permanent: false}); }
+                    }).addTo(hanhChinhMoiLayer);
+                }
+            } catch (error) {}
         }
 
         let lightningDatabase = {}; 
@@ -314,8 +387,8 @@
                             let nearestPoleName = "N/A";
                             let distSetToCot = "N/A";
 
-                            if (poleFeatures.length > 0) {
-                                const poleCollection = turf.featureCollection(poleFeatures);
+                            if (allPoleFeatures.length > 0) {
+                                const poleCollection = turf.featureCollection(allPoleFeatures);
                                 const nearestPoleFeature = turf.nearestPoint(pt, poleCollection);
                                 
                                 nearestPoleName = detectPoleName(nearestPoleFeature.properties);
@@ -328,7 +401,7 @@
                                 address: address,
                                 lat: lat.toFixed(4),
                                 lng: lng.toFixed(4),
-                                time: timeString, // Dữ liệu thời gian đã sẵn sàng ở đây
+                                time: timeString, 
                                 poleName: nearestPoleName,
                                 distSetToCot: distSetToCot
                             });
@@ -375,7 +448,6 @@
                     tableRowsHtml = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#777;">Không tìm thấy điểm sét nào trong khu vực này.</td></tr>`;
                 }
 
-                // Mở rộng width của thẻ div bao ngoài lên 550px để bảng có thêm chỗ cho cột Thời gian
                 const reportContent = `
                     <div style="font-family: Arial; font-size: 12px; width: 550px;">
                         <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">BẢNG KHOANH VÙNG SÉT</h4>
@@ -403,14 +475,13 @@
                         </div>
                     </div>
                 `;
-                // Tăng maxWidth của Popup lên 580 để hiển thị tốt bảng rộng
                 activePolygonLayer.bindPopup(reportContent, { maxWidth: 580 }).openPopup();
             }
         }
 
-        loadLuoiDien();
-        fetchLightningData();
-        setInterval(fetchLightningData, 180000);
+        loadGeoData(); 
+        fetchLightningData(); 
+        setInterval(fetchLightningData, 180000); 
     </script>
 </body>
 </html>
