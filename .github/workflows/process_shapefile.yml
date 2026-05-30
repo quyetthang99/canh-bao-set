@@ -3,8 +3,8 @@ name: Tự động chuyển đổi Shapefile ZIP sang JSON
 on:
   push:
     paths:
-      - '**.zip' # Lệnh này bảo Bot: CHỈ chạy khi có ai đó upload file ZIP lên!
-  workflow_dispatch: # Nút bấm chạy thủ công nếu cần
+      - '**.zip'
+  workflow_dispatch:
 
 jobs:
   convert-shp:
@@ -14,13 +14,15 @@ jobs:
       - name: Kéo mã nguồn về
         uses: actions/checkout@v3
 
-      - name: Cài đặt Python
+      - name: Cài đặt Python 3.11 (Khóa phiên bản ổn định)
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.11' # <--- Đã sửa ở đây, khóa cứng bản 3.11
 
       - name: Cài đặt thư viện Bản đồ (Geopandas)
-        run: pip install geopandas pyproj fiona
+        run: |
+          python -m pip install --upgrade pip
+          pip install geopandas pandas pyproj fiona
 
       - name: Chạy Script giải nén và chuyển đổi
         run: python convert_zip.py
