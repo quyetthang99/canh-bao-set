@@ -76,9 +76,6 @@
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
     
     <script>
-        // ==================================================
-        // CẤU HÌNH CÁC LỚP BẢN ĐỒ NỀN (BASEMAPS)
-        // ==================================================
         const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
         const googleStreets = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20, attribution: '© Google Giao thông' });
         const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', { maxZoom: 20, attribution: '© Google Vệ tinh' });
@@ -89,11 +86,10 @@
             layers: [osmLayer] 
         });
 
-        // Chỉ bật duy nhất lớp Cảnh báo Sét mặc định
         const lightningLayer = L.layerGroup().addTo(map);
 
         const dienLucList = {
-            "🔌 ĐL Văn Bàn": "vanban.json", 
+            "🔌 ĐL Văn Bàn": "luoidien.json", 
             "🔌 ĐL Lào Cai": "laocai.json",
             "🔌 ĐL SaPa": "sapa.json",
             "🔌 ĐL Bát Xát": "batxat.json",
@@ -113,7 +109,6 @@
             "⚡ Cảnh báo Sét đánh": lightningLayer
         };
 
-        // KHÔNG dùng .addTo(map) nữa để các lớp mặc định bị tắt
         for (let key in dienLucList) {
             gridLayers[key] = L.layerGroup(); 
             overlayMaps[key] = gridLayers[key];
@@ -125,12 +120,8 @@
             "🛰️ Bản đồ Vệ tinh": googleSat
         };
 
-        // Bảng lớp hiện cố định bằng collapsed: false
         L.control.layers(baseMaps, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
 
-        // ==================================================
-        // CHỦ QUYỀN VÀ THỦ ĐÔ
-        // ==================================================
         const redStarIcon = L.divIcon({
             html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2" d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"></path></svg>',
             className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
@@ -150,9 +141,6 @@
         const truongSaMarker = L.marker([9.5000, 112.5000], { icon: islandIcon }).addTo(map);
         truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
-        // ==========================================
-        // CÔNG CỤ KHOANH VÙNG 
-        // ==========================================
         let allPoleFeatures = []; 
         let currentExportData = [];
 
@@ -201,19 +189,37 @@
 
         function detectPoleName(properties) {
             if (!properties) return "Không rõ tên";
-            const priorityKeys = ['Ten_Cot', 'TEN_COT', 'Ten_Cột', 'Ten', 'name', 'Name', 'MA_COT', 'Ma_Cot', 'Cot', 'Cột'];
-            for (let key of priorityKeys) {
-                if (properties[key]) return properties[key];
+            
+            let tenDoiTuong = "";
+            let soHieu = "";
+
+            const tenKeys = ['tenDoiTuon', 'TenDoiTuong', 'tenDoiTuong', 'TEN_DOI_TUONG'];
+            for (let key of tenKeys) {
+                if (properties[key] !== null && properties[key] !== undefined && properties[key] !== "") {
+                    tenDoiTuong = properties[key];
+                    break;
+                }
             }
-            for (let key in properties) {
-                if (typeof properties[key] === 'string' && properties[key].length > 0) return properties[key];
+
+            const soHieuKeys = ['soHieu', 'SoHieu', 'SO_HIEU'];
+            for (let key of soHieuKeys) {
+                if (properties[key] !== null && properties[key] !== undefined && properties[key] !== "") {
+                    soHieu = properties[key];
+                    break;
+                }
             }
+
+            if (tenDoiTuong && soHieu) {
+                return `${tenDoiTuong} (Số hiệu: ${soHieu})`;
+            } else if (tenDoiTuong) {
+                return tenDoiTuong; 
+            } else if (soHieu) {
+                return `Số hiệu: ${soHieu}`; 
+            }
+            
             return "Cột chưa đặt tên";
         }
 
-        // ==========================================
-        // TẢI DỮ LIỆU ĐỊA LÝ TOÀN HỆ THỐNG
-        // ==========================================
         async function loadGeoData() {
             for (let key in dienLucList) {
                 let fileName = dienLucList[key];
@@ -246,13 +252,12 @@
                             }
                         }).addTo(gridLayers[key]);
                     }
-                } catch (error) {
-                    // Tự động bỏ qua nếu file chưa được đẩy lên
-                }
+                } catch (error) {}
             }
         }
 
-        let lightningDatabase = {}; 
+        // TỐI ƯU HÓA: Tạo mảng lưu sét theo thứ tự thời gian
+        let lightningArray = []; 
 
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
@@ -260,7 +265,11 @@
                 const response = await fetch(`./database_set.json?t=${new Date().getTime()}`);
                 if (!response.ok) throw new Error("Chưa có Database");
                 
-                lightningDatabase = await response.json();
+                const lightningDatabase = await response.json();
+                
+                // Mẹo tăng tốc: Chuyển dữ liệu thành mảng và sắp xếp SÉT MỚI NHẤT LÊN ĐẦU
+                lightningArray = Object.values(lightningDatabase).sort((a, b) => b.timestamp - a.timestamp);
+                
                 filterLightning();
                 
                 statusLabel.innerText = "Hoạt động tốt";
@@ -277,18 +286,14 @@
                 alert("Không có dữ liệu điểm sét nào trong vùng để xuất báo cáo!");
                 return;
             }
-
             let csvContent = "\uFEFFSTT,Khu Vực,Thời Gian Ghi Nhận,Vĩ Độ,Kinh Độ,Cột Gần Nhất,Khoảng Cách (Sét -> Cột)\n";
-
             currentExportData.forEach((row) => {
                 let safeAddress = `"${row.address}"`;
                 let safeTime = `"${row.time}"`;
                 let safePole = `"${row.poleName}"`;
                 let safeDist = `"${row.distSetToCot}"`;
-                
                 csvContent += `${row.stt},${safeAddress},${safeTime},${row.lat},${row.lng},${safePole},${safeDist}\n`;
             });
-
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
@@ -309,81 +314,85 @@
             let count = 0;
             let insidePolygonData = []; 
 
-            for (const key in lightningDatabase) {
-                const record = lightningDatabase[key];
-                const infoArray = record.info; 
+            // Thuật toán quét siêu tốc đã tối ưu
+            for (let i = 0; i < lightningArray.length; i++) {
+                const record = lightningArray[i];
                 const timestamp = record.timestamp;
 
-                if (timestamp >= threshold) {
-                    for(let i = 0; i < infoArray.length; i++) {
-                        const strikeStr = infoArray[i];
-                        if(!strikeStr) continue;
-                        
-                        const parts = strikeStr.split(',');
-                        if(parts.length < 2) continue;
-                        
-                        const coordsStr = parts.pop().trim();
-                        const address = parts.join(', ').trim();
-                        const coordParts = coordsStr.split('-');
-                        if(coordParts.length !== 2) continue;
-                        
-                        const lat = parseFloat(coordParts[0]);
-                        const lng = parseFloat(coordParts[1]);
+                // TỐI ƯU ĐỘT PHÁ: Nếu gặp sét cũ hơn giới hạn lọc -> Dừng ngang vòng lặp ngay lập tức, không quét dữ liệu rác nữa!
+                if (timestamp < threshold) {
+                    break; 
+                }
 
-                        if (!isNaN(lat) && !isNaN(lng)) {
-                            const pt = turf.point([lng, lat]);
-                            let isInside = true;
+                const infoArray = record.info; 
+                for(let j = 0; j < infoArray.length; j++) {
+                    const strikeStr = infoArray[j];
+                    if(!strikeStr) continue;
+                    
+                    const parts = strikeStr.split(',');
+                    if(parts.length < 2) continue;
+                    
+                    const coordsStr = parts.pop().trim();
+                    const address = parts.join(', ').trim();
+                    const coordParts = coordsStr.split('-');
+                    if(coordParts.length !== 2) continue;
+                    
+                    const lat = parseFloat(coordParts[0]);
+                    const lng = parseFloat(coordParts[1]);
 
-                            if (activePolygonGeoJSON) {
-                                if (!turf.booleanPointInPolygon(pt, activePolygonGeoJSON)) {
-                                    isInside = false; 
-                                }
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        const pt = turf.point([lng, lat]);
+                        let isInside = true;
+
+                        if (activePolygonGeoJSON) {
+                            if (!turf.booleanPointInPolygon(pt, activePolygonGeoJSON)) {
+                                isInside = false; 
                             }
-
-                            if (!isInside) continue; 
-
-                            const dateObj = new Date(timestamp * 1000);
-                            const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
-
-                            let nearestPoleName = "N/A";
-                            let distSetToCot = "N/A";
-
-                            if (allPoleFeatures.length > 0) {
-                                const poleCollection = turf.featureCollection(allPoleFeatures);
-                                const nearestPoleFeature = turf.nearestPoint(pt, poleCollection);
-                                
-                                nearestPoleName = detectPoleName(nearestPoleFeature.properties);
-                                const dS2C = turf.distance(pt, nearestPoleFeature, {units: 'meters'});
-                                distSetToCot = `${dS2C.toFixed(1)} m`;
-                            }
-
-                            insidePolygonData.push({
-                                stt: count + 1,
-                                address: address,
-                                lat: lat.toFixed(4),
-                                lng: lng.toFixed(4),
-                                time: timeString, 
-                                poleName: nearestPoleName,
-                                distSetToCot: distSetToCot
-                            });
-
-                            const popupHTML = `
-                                <div style="font-family: Arial; font-size: 13px; width: 220px; line-height: 1.5;">
-                                    <b style="color:red; font-size:14px;">⚡ ĐIỂM SÉT ĐÁNH</b><hr style="margin:5px 0;">
-                                    <b>Khu vực:</b> ${address}<br>
-                                    <b>Tọa độ:</b> ${lat.toFixed(4)}, ${lng.toFixed(4)}<br>
-                                    <b>Thời gian:</b> <span style="color:blue; font-weight:bold;">${timeString}</span><br>
-                                    <span style="color:#e65100;"><b>Cột gần nhất:</b> ${nearestPoleName} (${distSetToCot})</span>
-                                </div>
-                            `;
-
-                            const marker = L.marker([lat, lng], { icon: lightningIconRed })
-                                            .bindPopup(popupHTML)
-                                            .bindTooltip(popupHTML, { direction: 'top', offset: [0, -15], opacity: 0.95 });
-                            
-                            lightningLayer.addLayer(marker);
-                            count++;
                         }
+
+                        if (!isInside) continue; 
+
+                        const dateObj = new Date(timestamp * 1000);
+                        const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
+
+                        let nearestPoleName = "N/A";
+                        let distSetToCot = "N/A";
+
+                        if (allPoleFeatures.length > 0) {
+                            const poleCollection = turf.featureCollection(allPoleFeatures);
+                            const nearestPoleFeature = turf.nearestPoint(pt, poleCollection);
+                            
+                            nearestPoleName = detectPoleName(nearestPoleFeature.properties);
+                            const dS2C = turf.distance(pt, nearestPoleFeature, {units: 'meters'});
+                            distSetToCot = `${dS2C.toFixed(1)} m`;
+                        }
+
+                        insidePolygonData.push({
+                            stt: count + 1,
+                            address: address,
+                            lat: lat.toFixed(4),
+                            lng: lng.toFixed(4),
+                            time: timeString, 
+                            poleName: nearestPoleName,
+                            distSetToCot: distSetToCot
+                        });
+
+                        const popupHTML = `
+                            <div style="font-family: Arial; font-size: 13px; width: 220px; line-height: 1.5;">
+                                <b style="color:red; font-size:14px;">⚡ ĐIỂM SÉT ĐÁNH</b><hr style="margin:5px 0;">
+                                <b>Khu vực:</b> ${address}<br>
+                                <b>Tọa độ:</b> ${lat.toFixed(4)}, ${lng.toFixed(4)}<br>
+                                <b>Thời gian:</b> <span style="color:blue; font-weight:bold;">${timeString}</span><br>
+                                <span style="color:#e65100;"><b>Cột gần nhất:</b> ${nearestPoleName} (${distSetToCot})</span>
+                            </div>
+                        `;
+
+                        const marker = L.marker([lat, lng], { icon: lightningIconRed })
+                                        .bindPopup(popupHTML)
+                                        .bindTooltip(popupHTML, { direction: 'top', offset: [0, -15], opacity: 0.95 });
+                        
+                        lightningLayer.addLayer(marker);
+                        count++;
                     }
                 }
             }
