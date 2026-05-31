@@ -201,14 +201,12 @@
 
         function detectPoleName(properties) {
             if (!properties) return "Không rõ tên";
-            
-            // Chỉ tìm duy nhất trường Tên Đối Tượng (Bao gồm cả tenDoiTuon do Shapefile giới hạn 10 ký tự)
-            const priorityKeys = ['TenDoiTuong', 'tenDoiTuong', 'tenDoiTuon', 'TEN_DOI_TUONG'];
-            
+            const priorityKeys = ['Ten_Cot', 'TEN_COT', 'Ten_Cột', 'Ten', 'name', 'Name', 'MA_COT', 'Ma_Cot', 'Cot', 'Cột'];
             for (let key of priorityKeys) {
-                if (properties[key] !== null && properties[key] !== undefined && properties[key] !== "") {
-                    return properties[key];
-                }
+                if (properties[key]) return properties[key];
+            }
+            for (let key in properties) {
+                if (typeof properties[key] === 'string' && properties[key].length > 0) return properties[key];
             }
             return "Cột chưa đặt tên";
         }
