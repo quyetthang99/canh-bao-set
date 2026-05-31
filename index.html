@@ -61,11 +61,11 @@
                 <option value="43200">12 Giờ qua</option>
                 <option value="86400">24 Giờ qua</option>
                 <option value="172800">2 Ngày qua</option>
-                <option value="604800" >1 Tuần qua (Tất cả)</option>
+                <option value="604800">1 Tuần qua (Tất cả)</option>
             </select>
         </div>
         <div style="margin-top: 10px; font-size: 12px; color: #666;">
-            <i>* Quản lý lớp Điện lực và Bản đồ nền ở biểu tượng góc trái dưới màn hình.</i>
+            <i>* Quản lý lớp Điện lực và Bản đồ nền ở bảng góc trái dưới màn hình.</i>
         </div>
     </div>
 
@@ -89,10 +89,11 @@
             layers: [osmLayer] 
         });
 
+        // Chỉ bật duy nhất lớp Cảnh báo Sét mặc định
         const lightningLayer = L.layerGroup().addTo(map);
 
         const dienLucList = {
-            "🔌 ĐL Văn Bàn": "vanban.json", 
+            "🔌 ĐL Văn Bàn": "luoidien.json", 
             "🔌 ĐL Lào Cai": "laocai.json",
             "🔌 ĐL SaPa": "sapa.json",
             "🔌 ĐL Bát Xát": "batxat.json",
@@ -112,9 +113,9 @@
             "⚡ Cảnh báo Sét đánh": lightningLayer
         };
 
-        // Khởi tạo và BẬT MẶC ĐỊNH (.addTo(map)) cho toàn bộ 13 Điện lực
+        // KHÔNG dùng .addTo(map) nữa để các lớp mặc định bị tắt
         for (let key in dienLucList) {
-            gridLayers[key] = L.layerGroup().addTo(map); 
+            gridLayers[key] = L.layerGroup(); 
             overlayMaps[key] = gridLayers[key];
         }
 
@@ -124,8 +125,8 @@
             "🛰️ Bản đồ Vệ tinh": googleSat
         };
 
-        // Đã sửa collapsed thành true để tạo icon menu trượt trên mobile
-        L.control.layers(baseMaps, overlayMaps, {collapsed: true, position: 'bottomleft'}).addTo(map);
+        // Bảng lớp hiện cố định bằng collapsed: false
+        L.control.layers(baseMaps, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
 
         // ==================================================
         // CHỦ QUYỀN VÀ THỦ ĐÔ
@@ -160,7 +161,11 @@
 
         const drawControl = new L.Control.Draw({
             position: 'topleft',
-            edit: { featureGroup: drawnItems },
+            edit: { 
+                featureGroup: drawnItems,
+                edit: false, 
+                remove: true 
+            },
             draw: {
                 polyline: false, marker: false, circlemarker: false, circle: false,
                 polygon: { allowIntersection: false, showArea: true },
@@ -179,14 +184,6 @@
             activePolygonGeoJSON = layer.toGeoJSON();
             activePolygonLayer = layer;
             filterLightning(); 
-        });
-
-        map.on(L.Draw.Event.EDITED, function (e) {
-            drawnItems.eachLayer(function(layer) {
-                 activePolygonGeoJSON = layer.toGeoJSON();
-                 activePolygonLayer = layer;
-            });
-            filterLightning();
         });
 
         map.on(L.Draw.Event.DELETED, function (e) {
