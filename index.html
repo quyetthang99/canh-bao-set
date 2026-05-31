@@ -76,6 +76,7 @@
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
     
     <script>
+        // 1. CẤU HÌNH BẢN ĐỒ NỀN
         const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
         const googleStreets = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20, attribution: '© Google Giao thông' });
         const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', { maxZoom: 20, attribution: '© Google Vệ tinh' });
@@ -86,6 +87,7 @@
             layers: [osmLayer] 
         });
 
+        // Chỉ bật lớp Sét mặc định
         const lightningLayer = L.layerGroup().addTo(map);
 
         const dienLucList = {
@@ -109,6 +111,7 @@
             "⚡ Cảnh báo Sét đánh": lightningLayer
         };
 
+        // Tạo layer nhưng không addTo(map) -> Tắt mặc định
         for (let key in dienLucList) {
             gridLayers[key] = L.layerGroup(); 
             overlayMaps[key] = gridLayers[key];
@@ -120,8 +123,10 @@
             "🛰️ Bản đồ Vệ tinh": googleSat
         };
 
+        // Bảng điều khiển mở cố định
         L.control.layers(baseMaps, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
 
+        // 2. ICON ĐẶC BIỆT & ĐÁNH DẤU LÃNH THỔ
         const redStarIcon = L.divIcon({
             html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2" d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"></path></svg>',
             className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
@@ -141,6 +146,7 @@
         const truongSaMarker = L.marker([9.5000, 112.5000], { icon: islandIcon }).addTo(map);
         truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
+        // 3. CÔNG CỤ KHOANH VÙNG
         let allPoleFeatures = []; 
         let currentExportData = [];
 
@@ -187,6 +193,7 @@
             className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]
         });
 
+        // 4. HÀM TÌM TÊN & SỐ HIỆU CỘT CHUẨN XÁC
         function detectPoleName(properties) {
             if (!properties) return "Không rõ tên";
             
@@ -220,6 +227,7 @@
             return "Cột chưa đặt tên";
         }
 
+        // 5. TẢI DỮ LIỆU ĐIỆN LỰC TỪ GITHUB
         async function loadGeoData() {
             for (let key in dienLucList) {
                 let fileName = dienLucList[key];
@@ -256,31 +264,34 @@
             }
         }
 
-        // TỐI ƯU HÓA: Tạo mảng lưu sét theo thứ tự thời gian
+        // 6. KẾT NỐI FIREBASE & TỐI ƯU MẢNG SÉT
         let lightningArray = []; 
 
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
             try {
-                const response = await fetch(`./database_set.json?t=${new Date().getTime()}`);
-                if (!response.ok) throw new Error("Chưa có Database");
+                // KẾT NỐI TRỰC TIẾP FIREBASE
+                const response = await fetch('https://database-set-7a73d-default-rtdb.asia-southeast1.firebasedatabase.app/lightning_data.json');
+                if (!response.ok) throw new Error("Lỗi kết nối Firebase");
                 
                 const lightningDatabase = await response.json();
                 
-                // Mẹo tăng tốc: Chuyển dữ liệu thành mảng và sắp xếp SÉT MỚI NHẤT LÊN ĐẦU
-                lightningArray = Object.values(lightningDatabase).sort((a, b) => b.timestamp - a.timestamp);
+                if (lightningDatabase) {
+                    // Sắp xếp SÉT MỚI NHẤT LÊN ĐẦU
+                    lightningArray = Object.values(lightningDatabase).sort((a, b) => b.timestamp - a.timestamp);
+                    filterLightning();
+                }
                 
-                filterLightning();
-                
-                statusLabel.innerText = "Hoạt động tốt";
+                statusLabel.innerText = "Hoạt động tốt (Firebase)";
                 statusLabel.style.color = "green";
             } catch (error) {
                 console.log(error);
-                statusLabel.innerText = "Chờ đồng bộ sét...";
-                statusLabel.style.color = "gray";
+                statusLabel.innerText = "Mất kết nối máy chủ sét...";
+                statusLabel.style.color = "red";
             }
         }
 
+        // 7. XUẤT EXCEL
         function exportExcel() {
             if (!currentExportData || currentExportData.length === 0) {
                 alert("Không có dữ liệu điểm sét nào trong vùng để xuất báo cáo!");
@@ -304,6 +315,7 @@
             document.body.removeChild(link);
         }
 
+        // 8. LỌC SÉT SIÊU TỐC
         function filterLightning() {
             lightningLayer.clearLayers();
             
@@ -314,12 +326,12 @@
             let count = 0;
             let insidePolygonData = []; 
 
-            // Thuật toán quét siêu tốc đã tối ưu
+            // Quét từ trên xuống dưới (Đã được xếp mới nhất ở trên)
             for (let i = 0; i < lightningArray.length; i++) {
                 const record = lightningArray[i];
                 const timestamp = record.timestamp;
 
-                // TỐI ƯU ĐỘT PHÁ: Nếu gặp sét cũ hơn giới hạn lọc -> Dừng ngang vòng lặp ngay lập tức, không quét dữ liệu rác nữa!
+                // NGẮT VÒNG LẶP SỚM NẾU GẶP DỮ LIỆU CŨ HƠN BỘ LỌC
                 if (timestamp < threshold) {
                     break; 
                 }
@@ -449,9 +461,10 @@
             }
         }
 
+        // 9. KHỞI CHẠY HỆ THỐNG
         loadGeoData(); 
         fetchLightningData(); 
-        setInterval(fetchLightningData, 180000); 
+        setInterval(fetchLightningData, 180000); // Tự động làm mới sét mỗi 3 phút
     </script>
 </body>
 </html>
