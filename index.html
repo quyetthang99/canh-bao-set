@@ -87,23 +87,22 @@
             layers: [osmLayer] 
         });
 
-        // Chỉ bật lớp Sét mặc định
         const lightningLayer = L.layerGroup().addTo(map);
 
         const dienLucList = {
-            " ĐL Văn Bàn": "vanban.json", 
-            " ĐL Lào Cai": "laocai.json",
-            " ĐL SaPa": "sapa.json",
-            " ĐL Bát Xát": "batxat.json",
-            " ĐL Bắc Hà": "bacha.json",
-            " ĐL Bảo Thắng": "baothang.json",
-            " ĐL Bảo Yên": "baoyen.json",
-            " ĐL Mường Khương": "muongkhuong.json",
-            " ĐL Yên Bái": "yenbai.json",
-            " ĐL Trấn Yên": "tranyen.json",
-            " ĐL Văn Yên": "vanyen.json",
-            " ĐL Lục Yên": "lucyen.json",
-            " ĐL Nghĩa Lộ": "nghialo.json"
+            "🔌 ĐL Văn Bàn": "luoidien.json", 
+            "🔌 ĐL Lào Cai": "laocai.json",
+            "🔌 ĐL SaPa": "sapa.json",
+            "🔌 ĐL Bát Xát": "batxat.json",
+            "🔌 ĐL Bắc Hà": "bacha.json",
+            "🔌 ĐL Bảo Thắng": "baothang.json",
+            "🔌 ĐL Bảo Yên": "baoyen.json",
+            "🔌 ĐL Mường Khương": "muongkhuong.json",
+            "🔌 ĐL Yên Bái": "yenbai.json",
+            "🔌 ĐL Trấn Yên": "tranyen.json",
+            "🔌 ĐL Văn Yên": "vanyen.json",
+            "🔌 ĐL Lục Yên": "lucyen.json",
+            "🔌 ĐL Nghĩa Lộ": "nghialo.json"
         };
 
         const gridLayers = {};
@@ -111,7 +110,6 @@
             "⚡ Cảnh báo Sét đánh": lightningLayer
         };
 
-        // Tạo layer nhưng không addTo(map) -> Tắt mặc định
         for (let key in dienLucList) {
             gridLayers[key] = L.layerGroup(); 
             overlayMaps[key] = gridLayers[key];
@@ -123,8 +121,12 @@
             "🛰️ Bản đồ Vệ tinh": googleSat
         };
 
-        // Bảng điều khiển mở cố định
         L.control.layers(baseMaps, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
+
+        // ĐỘT PHÁ 1: Tự động tính toán lại khoanh vùng ngay khi bạn bật/tắt các lớp Điện lực ở bảng điều khiển
+        map.on('overlayadd overlayremove', function() {
+            filterLightning();
+        });
 
         // 2. ICON ĐẶC BIỆT & ĐÁNH DẤU LÃNH THỔ
         const redStarIcon = L.divIcon({
@@ -146,8 +148,9 @@
         const truongSaMarker = L.marker([9.5000, 112.5000], { icon: islandIcon }).addTo(map);
         truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
-        // 3. CÔNG CỤ KHOANH VÙNG
-        let allPoleFeatures = []; 
+        // 3. CÔNG CỤ KHOANH VÙNG & TỔ T CHỨC DỮ LIỆU
+        // ĐỘT PHÁ 2: Không gom chung 1 rổ nữa, tạo tủ nhiều ngăn để phân loại cột theo từng Điện lực
+        let poleFeaturesByLayer = {}; 
         let currentExportData = [];
 
         const drawnItems = new L.FeatureGroup();
@@ -196,10 +199,8 @@
         // 4. HÀM TÌM TÊN & SỐ HIỆU CỘT CHUẨN XÁC
         function detectPoleName(properties) {
             if (!properties) return "Không rõ tên";
-            
             let tenDoiTuong = "";
             let soHieu = "";
-
             const tenKeys = ['tenDoiTuon', 'TenDoiTuong', 'tenDoiTuong', 'TEN_DOI_TUONG'];
             for (let key of tenKeys) {
                 if (properties[key] !== null && properties[key] !== undefined && properties[key] !== "") {
@@ -207,7 +208,6 @@
                     break;
                 }
             }
-
             const soHieuKeys = ['soHieu', 'SoHieu', 'SO_HIEU'];
             for (let key of soHieuKeys) {
                 if (properties[key] !== null && properties[key] !== undefined && properties[key] !== "") {
@@ -215,14 +215,9 @@
                     break;
                 }
             }
-
-            if (tenDoiTuong && soHieu) {
-                return `${tenDoiTuong} (Số hiệu: ${soHieu})`;
-            } else if (tenDoiTuong) {
-                return tenDoiTuong; 
-            } else if (soHieu) {
-                return `Số hiệu: ${soHieu}`; 
-            }
+            if (tenDoiTuong && soHieu) return `${tenDoiTuong} (Số hiệu: ${soHieu})`;
+            else if (tenDoiTuong) return tenDoiTuong; 
+            else if (soHieu) return `Số hiệu: ${soHieu}`; 
             
             return "Cột chưa đặt tên";
         }
@@ -230,14 +225,16 @@
         // 5. TẢI DỮ LIỆU ĐIỆN LỰC TỪ GITHUB
         async function loadGeoData() {
             for (let key in dienLucList) {
+                poleFeaturesByLayer[key] = []; // Khởi tạo ngăn tủ cho Điện lực này
                 let fileName = dienLucList[key];
                 try {
                     const response = await fetch(`./${fileName}?t=${new Date().getTime()}`);
                     if (response.ok) {
                         const data = await response.json();
                         
+                        // Chỉ cất các điểm cột vào đúng ngăn tủ của Điện lực đó
                         let poles = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
-                        allPoleFeatures.push(...poles);
+                        poleFeaturesByLayer[key].push(...poles);
 
                         L.geoJSON(data, {
                             style: function (feature) {
@@ -270,18 +267,14 @@
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
             try {
-                // KẾT NỐI TRỰC TIẾP FIREBASE
                 const response = await fetch('https://database-set-7a73d-default-rtdb.asia-southeast1.firebasedatabase.app/lightning_data.json');
                 if (!response.ok) throw new Error("Lỗi kết nối Firebase");
                 
                 const lightningDatabase = await response.json();
-                
                 if (lightningDatabase) {
-                    // Sắp xếp SÉT MỚI NHẤT LÊN ĐẦU
                     lightningArray = Object.values(lightningDatabase).sort((a, b) => b.timestamp - a.timestamp);
                     filterLightning();
                 }
-                
                 statusLabel.innerText = "Hoạt động tốt (Firebase)";
                 statusLabel.style.color = "green";
             } catch (error) {
@@ -315,7 +308,7 @@
             document.body.removeChild(link);
         }
 
-        // 8. LỌC SÉT SIÊU TỐC
+        // 8. LỌC SÉT & TÍNH KHOẢNG CÁCH THÔNG MINH
         function filterLightning() {
             lightningLayer.clearLayers();
             
@@ -326,15 +319,19 @@
             let count = 0;
             let insidePolygonData = []; 
 
-            // Quét từ trên xuống dưới (Đã được xếp mới nhất ở trên)
+            // ĐỘT PHÁ 3: Quét xem trên màn hình đang bật những Điện lực nào, thì chỉ lấy cột của các Điện lực đó ra để tính toán
+            let activePoleFeatures = [];
+            for (let key in gridLayers) {
+                if (map.hasLayer(gridLayers[key]) && poleFeaturesByLayer[key]) {
+                    activePoleFeatures = activePoleFeatures.concat(poleFeaturesByLayer[key]);
+                }
+            }
+
             for (let i = 0; i < lightningArray.length; i++) {
                 const record = lightningArray[i];
                 const timestamp = record.timestamp;
 
-                // NGẮT VÒNG LẶP SỚM NẾU GẶP DỮ LIỆU CŨ HƠN BỘ LỌC
-                if (timestamp < threshold) {
-                    break; 
-                }
+                if (timestamp < threshold) break; 
 
                 const infoArray = record.info; 
                 for(let j = 0; j < infoArray.length; j++) {
@@ -367,11 +364,12 @@
                         const dateObj = new Date(timestamp * 1000);
                         const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
 
-                        let nearestPoleName = "N/A";
+                        let nearestPoleName = "Chưa bật lớp lưới điện nào";
                         let distSetToCot = "N/A";
 
-                        if (allPoleFeatures.length > 0) {
-                            const poleCollection = turf.featureCollection(allPoleFeatures);
+                        // Chỉ đo khoảng cách nếu có ít nhất 1 lớp Điện lực đang được bật trên màn hình
+                        if (activePoleFeatures.length > 0) {
+                            const poleCollection = turf.featureCollection(activePoleFeatures);
                             const nearestPoleFeature = turf.nearestPoint(pt, poleCollection);
                             
                             nearestPoleName = detectPoleName(nearestPoleFeature.properties);
@@ -464,7 +462,7 @@
         // 9. KHỞI CHẠY HỆ THỐNG
         loadGeoData(); 
         fetchLightningData(); 
-        setInterval(fetchLightningData, 180000); // Tự động làm mới sét mỗi 3 phút
+        setInterval(fetchLightningData, 180000); 
     </script>
 </body>
 </html>
