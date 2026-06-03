@@ -183,17 +183,13 @@
             filterLightning();
         });
 
-        // ==========================================
-        // KHAI BÁO CÁC LOẠI ICON SÉT TRÊN BẢN ĐỒ
-        // ==========================================
-
-        // 1. Icon Sét Mặt Đất (Hoặc chưa rõ) - Tia sét màu Đỏ
+        // Icon Sét Mặt Đất
         const lightningIconRed = L.divIcon({
             html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>',
             className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]
         });
 
-        // 2. Icon Sét Trong Mây - Đám mây xanh xám + Tia sét vàng
+        // Icon Sét Trong Mây
         const lightningIconCloud = L.divIcon({
             html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#546E7A" stroke="#ffffff" stroke-width="0.5" d="M17.5,19A4.5,4.5 0 0,0 22,14.5C22,12.18 20.24,10.28 18,10.05C17.44,6.64 14.48,4 11,4C7.71,4 4.86,6.19 3.65,9.17C1.59,9.61 0,11.45 0,13.66C0,16.05 1.95,18 4.34,18H5V16H4.34C3.05,16 2,14.95 2,13.66C2,12.44 2.92,11.41 4.12,11.27L5.05,11.16L5.35,10.29C6.26,7.63 8.78,5.8 11.66,5.8C14.86,5.8 17.52,8.35 17.65,11.5L17.7,12.2L18.4,12.23C20.17,12.33 21.6,13.82 21.6,15.6C21.6,17.42 20.12,18.9 18.3,18.9H17V20.9H17.5Z"></path><path fill="#FFC107" stroke="#ffffff" stroke-width="1" d="M13,22l-3-8h2.5L11.5,5h3.5l3,8h-2.5L17,22L13,22z"></path></svg>',
             className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
@@ -284,7 +280,7 @@
                 alert("Không có dữ liệu điểm sét nào trong vùng để xuất báo cáo!");
                 return;
             }
-            let csvContent = "\uFEFFSTT,Vĩ Độ,Kinh Độ,Thời Gian Ghi Nhận,Cường Độ (kA),Loại Sét,Cột Gần Nhất,Khoảng Cách\n";
+            let csvContent = "\uFEFFSTT,Vĩ Độ,Kinh Độ,Thời Gian Ghi Nhận,Cường Độ,Loại Sét,Cột Gần Nhất,Khoảng Cách\n";
             currentExportData.forEach((row) => {
                 let safeTime = `"${row.time}"`;
                 let safePole = `"${row.poleName}"`;
@@ -295,7 +291,7 @@
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
             link.setAttribute("href", url);
-            link.setAttribute("download", "Bao_Cao_Set_Va_Cuong_Do.csv");
+            link.setAttribute("download", "Bao_Cao_Set.csv");
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -328,10 +324,13 @@
 
                 if (record.is_new_format) {
                     let typeText = record.loaiset === 0 ? "Xuống đất" : "Trong mây";
+                    // KIỂM TRA NẾU TRẠM KHÍ TƯỢNG BỊ THIẾU DỮ LIỆU CƯỜNG ĐỘ (Trả về 0)
+                    let giatriText = (record.giatri === 0 || record.giatri === 0.0) ? "Không có DL" : `${record.giatri} kA`;
+                    
                     parsedStrikes.push({
                         lat: record.lat,
                         lng: record.lng,
-                        giatri: `${record.giatri} kA`,
+                        giatri: giatriText,
                         loaiset: typeText
                     });
                 } else if (record.info) {
@@ -346,7 +345,7 @@
                         parsedStrikes.push({
                             lat: parseFloat(coordParts[0]),
                             lng: parseFloat(coordParts[1]),
-                            giatri: "Không rõ",
+                            giatri: "Không có DL",
                             loaiset: "Không rõ"
                         });
                     }
@@ -391,10 +390,9 @@
                         distSetToCot: distSetToCot
                     });
 
-                    // LỰA CHỌN ICON DỰA TRÊN LOẠI SÉT
-                    let currentIcon = lightningIconRed; // Mặc định là tia sét đỏ (Sét mặt đất hoặc không rõ)
+                    let currentIcon = lightningIconRed; 
                     if (strike.loaiset === "Trong mây") {
-                        currentIcon = lightningIconCloud; // Chuyển sang Icon đám mây nếu là sét IC
+                        currentIcon = lightningIconCloud; 
                     }
 
                     let colorCode = strike.loaiset.includes("đất") ? "red" : "#ff8c00";
@@ -425,13 +423,13 @@
             if (activePolygonLayer) {
                 let tableRowsHtml = "";
                 insidePolygonData.forEach((item) => {
-                    let intensityColor = item.giatri === "Không rõ" ? "#777" : "#d32f2f";
+                    let intensityColor = (item.giatri === "Không có DL") ? "#777" : "#d32f2f";
                     tableRowsHtml += `
                         <tr style="border-bottom: 1px solid #e0e0e0;">
                             <td style="padding: 6px; text-align: center;">${item.stt}</td>
                             <td style="padding: 6px; text-align: center; font-size: 11px;">${item.lat},<br>${item.lng}</td>
                             <td style="padding: 6px; text-align: center; font-weight:bold; color:${intensityColor};">${item.giatri}</td>
-                            <td style="padding: 6px; text-align: center; color: ${item.loaiset === 'Không rõ' ? '#777' : '#0056b3'};">${item.loaiset}</td>
+                            <td style="padding: 6px; text-align: center; color: ${item.loaiset.includes('Không') ? '#777' : '#0056b3'};">${item.loaiset}</td>
                             <td style="padding: 6px; text-align: center; color: #555; white-space: nowrap;">${item.time}</td>
                             <td style="padding: 6px; font-weight: bold; color: #0056b3; text-align: center; max-width: 150px; white-space: normal; word-wrap: break-word; line-height: 1.4;">${item.poleName}</td>
                             <td style="padding: 6px; color: #d32f2f; font-weight: bold; text-align: center; white-space: nowrap;">${item.distSetToCot}</td>
@@ -444,7 +442,7 @@
                 }
 
                 const reportContent = `
-                    <div style="font-family: Arial; font-size: 12px; width: 750px;"> 
+                    <div style="font-family: Arial; font-size: 12px; width: 700px;"> 
                         <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">KẾT QUẢ KHOANH VÙNG</h4>
                         
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -472,7 +470,7 @@
                         </div>
                     </div>
                 `;
-                activePolygonLayer.bindPopup(reportContent, { maxWidth: 800 }).openPopup();
+                activePolygonLayer.bindPopup(reportContent, { maxWidth: 750 }).openPopup();
             }
         }
 
