@@ -89,21 +89,21 @@
         const lightningLayer = L.layerGroup().addTo(map);
 
         const dienLucList = {
-            " ĐL Văn Bàn": "vanban.json", 
-            " ĐL Lào Cai": "laocai.json",
-            " ĐL SaPa": "sapa.json",
-            " ĐL Bát Xát": "batxat.json",
-            " ĐL Bắc Hà": "bacha.json",
-            " ĐL Bảo Thắng": "baothang.json",
-            " ĐL Bảo Yên": "baoyen.json",
-            " ĐL Mường Khương": "muongkhuong.json",
-            " ĐL Yên Bái": "yenbai.json",
-            " ĐL Trấn Yên": "tranyen.json",
-            " ĐL Văn Yên": "vanyen.json",
-            " ĐL Lục Yên": "lucyen.json",
-            " ĐL Nghĩa Lộ": "nghialo.json",
-            " Cao Thế LC": "caothelc.json",
-            " Cao Thế YB": "caotheyb.json"
+            "🔌 ĐL Văn Bàn": "vanban.json", 
+            "🔌 ĐL Lào Cai": "laocai.json",
+            "🔌 ĐL SaPa": "sapa.json",
+            "🔌 ĐL Bát Xát": "batxat.json",
+            "🔌 ĐL Bắc Hà": "bacha.json",
+            "🔌 ĐL Bảo Thắng": "baothang.json",
+            "🔌 ĐL Bảo Yên": "baoyen.json",
+            "🔌 ĐL Mường Khương": "muongkhuong.json",
+            "🔌 ĐL Yên Bái": "yenbai.json",
+            "🔌 ĐL Trấn Yên": "tranyen.json",
+            "🔌 ĐL Văn Yên": "vanyen.json",
+            "🔌 ĐL Lục Yên": "lucyen.json",
+            "🔌 ĐL Nghĩa Lộ": "nghialo.json",
+            "⚡ Cao Thế LC": "caothelc.json",
+            "⚡ Cao Thế YB": "caotheyb.json"
         };
 
         const gridLayers = {};
@@ -273,7 +273,6 @@
                 alert("Không có dữ liệu điểm sét nào trong vùng để xuất báo cáo!");
                 return;
             }
-            // Thêm cột Cường độ và Loại sét vào Excel
             let csvContent = "\uFEFFSTT,Vĩ Độ,Kinh Độ,Thời Gian Ghi Nhận,Cường Độ (kA),Loại Sét,Cột Gần Nhất,Khoảng Cách\n";
             currentExportData.forEach((row) => {
                 let safeTime = `"${row.time}"`;
@@ -314,12 +313,10 @@
 
                 if (timestamp < threshold) break; 
 
-                // TƯƠNG THÍCH NGƯỢC: Hỗ trợ cả mảng dữ liệu sét CŨ và sét MỚI
                 let parsedStrikes = [];
 
                 if (record.is_new_format) {
-                    // Xử lý dữ liệu định dạng mới siêu chi tiết
-                    let typeText = record.loaiset === 0 ? "Sét xuống đất (CG)" : "Sét trong mây (IC)";
+                    let typeText = record.loaiset === 0 ? "Xuống đất" : "Trong mây";
                     parsedStrikes.push({
                         lat: record.lat,
                         lng: record.lng,
@@ -327,7 +324,6 @@
                         loaiset: typeText
                     });
                 } else if (record.info) {
-                    // Giữ nguyên hỗ trợ cho dữ liệu cùi bắp của tuần trước
                     for(let j = 0; j < record.info.length; j++) {
                         const strikeStr = record.info[j];
                         if(!strikeStr) continue;
@@ -345,7 +341,6 @@
                     }
                 }
 
-                // Tiến hành vẽ và tính toán khoảng cách
                 for (let strike of parsedStrikes) {
                     if (isNaN(strike.lat) || isNaN(strike.lng)) continue;
 
@@ -417,33 +412,36 @@
                     tableRowsHtml += `
                         <tr style="border-bottom: 1px solid #e0e0e0;">
                             <td style="padding: 6px; text-align: center;">${item.stt}</td>
+                            <td style="padding: 6px; text-align: center; font-size: 11px;">${item.lat},<br>${item.lng}</td>
                             <td style="padding: 6px; text-align: center; font-weight:bold; color:${intensityColor};">${item.giatri}</td>
+                            <td style="padding: 6px; text-align: center; color: ${item.loaiset === 'Không rõ' ? '#777' : '#0056b3'};">${item.loaiset}</td>
                             <td style="padding: 6px; text-align: center; color: #555; white-space: nowrap;">${item.time}</td>
-                            <td style="padding: 6px; font-weight: bold; color: #0056b3; text-align: center;">${item.poleName}</td>
-                            <td style="padding: 6px; color: #d32f2f; font-weight: bold; text-align: center;">${item.distSetToCot}</td>
+                            <td style="padding: 6px; font-weight: bold; color: #0056b3; text-align: center; max-width: 150px; white-space: normal; word-wrap: break-word; line-height: 1.4;">${item.poleName}</td>
+                            <td style="padding: 6px; color: #d32f2f; font-weight: bold; text-align: center; white-space: nowrap;">${item.distSetToCot}</td>
                         </tr>
                     `;
                 });
 
                 if (insidePolygonData.length === 0) {
-                    tableRowsHtml = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#777;">Không tìm thấy điểm sét nào.</td></tr>`;
+                    tableRowsHtml = `<tr><td colspan="7" style="text-align:center; padding:15px; color:#777;">Không tìm thấy điểm sét nào.</td></tr>`;
                 }
 
                 const reportContent = `
-                    <div style="font-family: Arial; font-size: 12px; width: 600px;">
-                        <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">KẾT QUẢ KHOANH VÙNG</h4>
+                    <div style="font-family: Arial; font-size: 12px; width: 750px;"> <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">KẾT QUẢ KHOANH VÙNG</h4>
                         
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <p style="margin: 0;">Tổng số sét trong vùng: <b style="font-size:14px; color:red;">${insidePolygonData.length}</b></p>
                             <button class="btn-excel" onclick="exportExcel()">⬇ Xuất file Excel</button>
                         </div>
 
-                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px;">
+                        <div style="max-height: 220px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px;">
                             <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
                                 <thead style="background: #f5f5f5; position: sticky; top: 0; box-shadow: 0 1px 0 #ccc; z-index: 10;">
                                     <tr>
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc;">STT</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Vị trí (Tọa độ)</th>
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc;">Cường độ</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Loại sét</th>
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc;">Thời gian</th>
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc;">Cột gần nhất</th>
                                         <th style="padding: 6px; border-bottom: 1px solid #ccc;">Sét → Cột</th>
@@ -456,7 +454,7 @@
                         </div>
                     </div>
                 `;
-                activePolygonLayer.bindPopup(reportContent, { maxWidth: 620 }).openPopup();
+                activePolygonLayer.bindPopup(reportContent, { maxWidth: 800 }).openPopup();
             }
         }
 
