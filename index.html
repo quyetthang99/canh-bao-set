@@ -7,6 +7,8 @@
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -22,8 +24,8 @@
         .status { font-weight: bold; }
         .popup-custom { max-height: 200px; overflow-y: auto; font-size: 13px; }
         .popup-custom b { color: #0056b3; }
-        .filter-section { margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px; }
-        select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #aaa; font-weight: bold; cursor: pointer; }
+        .filter-section { margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 10px; }
+        select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #aaa; font-weight: bold; cursor: pointer; margin-bottom: 8px; }
         
         .lightning-icon-div { cursor: pointer; filter: drop-shadow(0 0 2px rgba(0,0,0,0.8)); transition: transform 0.2s; }
         .lightning-icon-div:hover { transform: scale(1.4); }
@@ -52,6 +54,45 @@
         <p>Số điểm sét: <span id="lightning-count" style="font-weight: bold; color: #d9534f; font-size: 18px;">0</span></p>
         
         <div class="filter-section">
+            <label for="province-filter"><b>Lọc theo tỉnh:</b></label>
+            <select id="province-filter" onchange="filterLightning(true)">
+                <option value="all">Toàn bộ (Tất cả)</option>
+                <option value="Lào Cai" selected>Lào Cai</option>
+                <option value="Lai Châu">Lai Châu</option>
+                <option value="Điện Biên">Điện Biên</option>
+                <option value="Sơn La">Sơn La</option>
+                <option value="Hòa Bình">Hòa Bình</option>
+                <option value="Yên Bái">Yên Bái</option>
+                <option value="Hà Giang">Hà Giang</option>
+                <option value="Tuyên Quang">Tuyên Quang</option>
+                <option value="Phú Thọ">Phú Thọ</option>
+                <option value="Cao Bằng">Cao Bằng</option>
+                <option value="Bắc Kạn">Bắc Kạn</option>
+                <option value="Thái Nguyên">Thái Nguyên</option>
+                <option value="Lạng Sơn">Lạng Sơn</option>
+                <option value="Bắc Giang">Bắc Giang</option>
+                <option value="Quảng Ninh">Quảng Ninh</option>
+                <option value="Hà Nội">Hà Nội</option>
+                <option value="Vĩnh Phúc">Vĩnh Phúc</option>
+                <option value="Bắc Ninh">Bắc Ninh</option>
+                <option value="Hải Dương">Hải Dương</option>
+                <option value="Hưng Yên">Hưng Yên</option>
+                <option value="Hải Phòng">Hải Phòng</option>
+                <option value="Thái Bình">Thái Bình</option>
+                <option value="Hà Nam">Hà Nam</option>
+                <option value="Nam Định">Nam Định</option>
+                <option value="Ninh Bình">Ninh Bình</option>
+                <option value="Thanh Hóa">Thanh Hóa</option>
+                <option value="Nghệ An">Nghệ An</option>
+                <option value="Hà Tĩnh">Hà Tĩnh</option>
+                <option value="Quảng Bình">Quảng Bình</option>
+                <option value="Quảng Trị">Quảng Trị</option>
+                <option value="Thừa Thiên Huế">Thừa Thiên Huế</option>
+                <option value="Đà Nẵng">Đà Nẵng</option>
+                <option value="Quảng Nam">Quảng Nam</option>
+                <option value="Quảng Ngãi">Quảng Ngãi</option>
+            </select>
+
             <label for="time-filter"><b>Lọc theo thời gian:</b></label>
             <select id="time-filter" onchange="filterLightning()">
                 <option value="600" selected>10 Phút qua</option>
@@ -64,8 +105,8 @@
                 <option value="604800">1 Tuần qua (Tất cả)</option>
             </select>
         </div>
-        <div style="margin-top: 10px; font-size: 12px; color: #666;">
-            <i>* Quản lý lớp Điện lực và Bản đồ nền ở bảng góc trái.</i>
+        <div style="margin-top: 10px; font-size: 11px; color: #666;">
+            <i>* Chọn Tỉnh để tự động khoanh vùng sét. Bật lớp Lưới điện ở bảng góc trái.</i>
         </div>
     </div>
 
@@ -74,8 +115,50 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     
     <script>
+        // ==========================================
+        // KHUNG TỌA ĐỘ 34 TỈNH (Bounding Box)
+        // Dùng để lọc sét siêu tốc mà không làm nặng web
+        // ==========================================
+        const provinceBounds = {
+            "Lào Cai": { minLat: 21.84, maxLat: 22.85, minLng: 103.50, maxLng: 104.64 },
+            "Lai Châu": { minLat: 21.52, maxLat: 22.82, minLng: 102.31, maxLng: 103.63 },
+            "Điện Biên": { minLat: 20.83, maxLat: 22.33, minLng: 102.15, maxLng: 103.59 },
+            "Sơn La": { minLat: 20.65, maxLat: 22.05, minLng: 103.20, maxLng: 105.02 },
+            "Hòa Bình": { minLat: 20.28, maxLat: 21.15, minLng: 104.80, maxLng: 105.85 },
+            "Yên Bái": { minLat: 21.23, maxLat: 22.32, minLng: 103.95, maxLng: 105.00 },
+            "Hà Giang": { minLat: 22.12, maxLat: 23.38, minLng: 104.33, maxLng: 105.55 },
+            "Tuyên Quang": { minLat: 21.52, maxLat: 22.75, minLng: 104.80, maxLng: 105.65 },
+            "Phú Thọ": { minLat: 20.91, maxLat: 21.72, minLng: 104.85, maxLng: 105.45 },
+            "Cao Bằng": { minLat: 22.25, maxLat: 23.13, minLng: 105.25, maxLng: 106.85 },
+            "Bắc Kạn": { minLat: 21.80, maxLat: 22.73, minLng: 105.43, maxLng: 106.25 },
+            "Thái Nguyên": { minLat: 21.33, maxLat: 22.05, minLng: 105.48, maxLng: 106.25 },
+            "Lạng Sơn": { minLat: 21.32, maxLat: 22.45, minLng: 106.10, maxLng: 107.35 },
+            "Bắc Giang": { minLat: 21.12, maxLat: 21.63, minLng: 105.88, maxLng: 106.80 },
+            "Quảng Ninh": { minLat: 20.73, maxLat: 21.65, minLng: 106.42, maxLng: 108.05 },
+            "Hà Nội": { minLat: 20.55, maxLat: 21.38, minLng: 105.28, maxLng: 106.03 },
+            "Vĩnh Phúc": { minLat: 21.15, maxLat: 21.60, minLng: 105.35, maxLng: 105.80 },
+            "Bắc Ninh": { minLat: 21.00, maxLat: 21.25, minLng: 105.90, maxLng: 106.33 },
+            "Hải Dương": { minLat: 20.72, maxLat: 21.23, minLng: 106.18, maxLng: 106.68 },
+            "Hưng Yên": { minLat: 20.58, maxLat: 21.02, minLng: 105.88, maxLng: 106.25 },
+            "Hải Phòng": { minLat: 20.58, maxLat: 21.03, minLng: 106.40, maxLng: 107.13 },
+            "Thái Bình": { minLat: 20.28, maxLat: 20.73, minLng: 106.25, maxLng: 106.65 },
+            "Hà Nam": { minLat: 20.38, maxLat: 20.72, minLng: 105.78, maxLng: 106.12 },
+            "Nam Định": { minLat: 19.90, maxLat: 20.48, minLng: 105.92, maxLng: 106.58 },
+            "Ninh Bình": { minLat: 19.83, maxLat: 20.40, minLng: 105.53, maxLng: 106.18 },
+            "Thanh Hóa": { minLat: 19.30, maxLat: 20.65, minLng: 104.38, maxLng: 106.05 },
+            "Nghệ An": { minLat: 18.55, maxLat: 19.90, minLng: 103.85, maxLng: 105.78 },
+            "Hà Tĩnh": { minLat: 17.88, maxLat: 18.65, minLng: 105.08, maxLng: 106.25 },
+            "Quảng Bình": { minLat: 17.08, maxLat: 18.10, minLng: 105.60, maxLng: 106.98 },
+            "Quảng Trị": { minLat: 16.33, maxLat: 17.17, minLng: 106.45, maxLng: 107.38 },
+            "Thừa Thiên Huế": { minLat: 15.95, maxLat: 16.73, minLng: 107.00, maxLng: 108.20 },
+            "Đà Nẵng": { minLat: 15.92, maxLat: 16.22, minLng: 107.82, maxLng: 108.33 },
+            "Quảng Nam": { minLat: 15.22, maxLat: 16.08, minLng: 107.25, maxLng: 108.73 },
+            "Quảng Ngãi": { minLat: 14.52, maxLat: 15.42, minLng: 108.28, maxLng: 109.10 }
+        };
+
         const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
         const googleStreets = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20, attribution: '© Google Giao thông' });
         const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', { maxZoom: 20, attribution: '© Google Vệ tinh' });
@@ -86,29 +169,53 @@
             layers: [osmLayer] 
         });
 
-        const lightningLayer = L.layerGroup().addTo(map);
+        // Layer Gom cụm (Cluster)
+        const lightningLayer = L.markerClusterGroup({
+            iconCreateFunction: function(cluster) {
+                const count = cluster.getChildCount();
+                let bgColor = 'rgba(255, 193, 7, 0.85)'; 
+                let borderColor = '#FFC107';
+                let textColor = '#000';
+                let size = 35;
+
+                if (count >= 50) {
+                    bgColor = 'rgba(253, 126, 20, 0.85)'; 
+                    borderColor = '#FD7E14';
+                    textColor = '#fff';
+                    size = 45;
+                }
+
+                return L.divIcon({
+                    html: `<div style="background-color: ${bgColor}; border: 2px solid ${borderColor}; color: ${textColor}; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; box-shadow: 0 3px 8px rgba(0,0,0,0.3);">${count}</div>`,
+                    className: 'custom-cluster-icon',
+                    iconSize: L.point(size, size)
+                });
+            },
+            animate: false, 
+            chunkedLoading: true 
+        }).addTo(map);
 
         const dienLucList = {
-            " ĐL Văn Bàn": "vanban.json", 
-            " ĐL Lào Cai": "laocai.json",
-            " ĐL SaPa": "sapa.json",
-            " ĐL Bát Xát": "batxat.json",
-            " ĐL Bắc Hà": "bacha.json",
-            " ĐL Bảo Thắng": "baothang.json",
-            " ĐL Bảo Yên": "baoyen.json",
-            " ĐL Mường Khương": "muongkhuong.json",
-            " ĐL Yên Bái": "yenbai.json",
-            " ĐL Trấn Yên": "tranyen.json",
-            " ĐL Văn Yên": "vanyen.json",
-            " ĐL Lục Yên": "lucyen.json",
-            " ĐL Nghĩa Lộ": "nghialo.json",
-            " Cao Thế LC": "caothelc.json",
-            " Cao Thế YB": "caotheyb.json"
+            "🔌 ĐL Văn Bàn": "vanban.json", 
+            "🔌 ĐL Lào Cai": "laocai.json",
+            "🔌 ĐL SaPa": "sapa.json",
+            "🔌 ĐL Bát Xát": "batxat.json",
+            "🔌 ĐL Bắc Hà": "bacha.json",
+            "🔌 ĐL Bảo Thắng": "baothang.json",
+            "🔌 ĐL Bảo Yên": "baoyen.json",
+            "🔌 ĐL Mường Khương": "muongkhuong.json",
+            "🔌 ĐL Yên Bái": "yenbai.json",
+            "🔌 ĐL Trấn Yên": "tranyen.json",
+            "🔌 ĐL Văn Yên": "vanyen.json",
+            "🔌 ĐL Lục Yên": "lucyen.json",
+            "🔌 ĐL Nghĩa Lộ": "nghialo.json",
+            "⚡ Cao Thế LC": "caothelc.json",
+            "⚡ Cao Thế YB": "caotheyb.json"
         };
 
         const gridLayers = {};
         const overlayMaps = {
-            "⚡ Cảnh báo Sét đánh": lightningLayer
+            "🔴 Cảnh báo Sét đánh": lightningLayer
         };
 
         for (let key in dienLucList) {
@@ -128,6 +235,7 @@
             filterLightning();
         });
 
+        // Icon hải đảo
         const redStarIcon = L.divIcon({
             html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2" d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"></path></svg>',
             className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
@@ -183,13 +291,12 @@
             filterLightning();
         });
 
-        // Icon Sét Mặt Đất
+        // Icon Sét
         const lightningIconRed = L.divIcon({
             html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>',
             className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]
         });
 
-        // Icon Sét Trong Mây
         const lightningIconCloud = L.divIcon({
             html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#546E7A" stroke="#ffffff" stroke-width="0.5" d="M17.5,19A4.5,4.5 0 0,0 22,14.5C22,12.18 20.24,10.28 18,10.05C17.44,6.64 14.48,4 11,4C7.71,4 4.86,6.19 3.65,9.17C1.59,9.61 0,11.45 0,13.66C0,16.05 1.95,18 4.34,18H5V16H4.34C3.05,16 2,14.95 2,13.66C2,12.44 2.92,11.41 4.12,11.27L5.05,11.16L5.35,10.29C6.26,7.63 8.78,5.8 11.66,5.8C14.86,5.8 17.52,8.35 17.65,11.5L17.7,12.2L18.4,12.23C20.17,12.33 21.6,13.82 21.6,15.6C21.6,17.42 20.12,18.9 18.3,18.9H17V20.9H17.5Z"></path><path fill="#FFC107" stroke="#ffffff" stroke-width="1" d="M13,22l-3-8h2.5L11.5,5h3.5l3,8h-2.5L17,22L13,22z"></path></svg>',
             className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
@@ -264,7 +371,8 @@
                 const lightningDatabase = await response.json();
                 if (lightningDatabase) {
                     lightningArray = Object.values(lightningDatabase).sort((a, b) => b.timestamp - a.timestamp);
-                    filterLightning();
+                    // Lần đầu mở web, ép nó zoom về Lào Cai
+                    filterLightning(true);
                 }
                 statusLabel.innerText = "Hoạt động tốt (Firebase)";
                 statusLabel.style.color = "green";
@@ -297,12 +405,27 @@
             document.body.removeChild(link);
         }
 
-        function filterLightning() {
+        // autoZoom = true nghĩa là người dùng vừa mới đổi Tỉnh, bắt buộc bản đồ phải bay tới Tỉnh đó
+        function filterLightning(autoZoom = false) {
             lightningLayer.clearLayers();
             
             const filterSeconds = parseInt(document.getElementById('time-filter').value);
+            const selectedProvince = document.getElementById('province-filter').value;
             const currentSeconds = Date.now() / 1000;
             const threshold = currentSeconds - filterSeconds;
+
+            // XỬ LÝ AUTO-ZOOM VỀ TỈNH
+            if (autoZoom) {
+                if (selectedProvince === "all") {
+                    map.setView([16.5, 105.0], 6); // Thu nhỏ xem toàn quốc
+                } else if (provinceBounds[selectedProvince]) {
+                    const b = provinceBounds[selectedProvince];
+                    map.fitBounds([
+                        [b.minLat, b.minLng],
+                        [b.maxLat, b.maxLng]
+                    ]);
+                }
+            }
 
             let count = 0;
             let insidePolygonData = []; 
@@ -324,14 +447,9 @@
 
                 if (record.is_new_format) {
                     let typeText = record.loaiset === 0 ? "Xuống đất" : "Trong mây";
-                    // KIỂM TRA NẾU TRẠM KHÍ TƯỢNG BỊ THIẾU DỮ LIỆU CƯỜNG ĐỘ (Trả về 0)
                     let giatriText = (record.giatri === 0 || record.giatri === 0.0) ? "Không có DL" : `${record.giatri} kA`;
-                    
                     parsedStrikes.push({
-                        lat: record.lat,
-                        lng: record.lng,
-                        giatri: giatriText,
-                        loaiset: typeText
+                        lat: record.lat, lng: record.lng, giatri: giatriText, loaiset: typeText
                     });
                 } else if (record.info) {
                     for(let j = 0; j < record.info.length; j++) {
@@ -343,16 +461,22 @@
                         const coordParts = coordsStr.split('-');
                         if(coordParts.length !== 2) continue;
                         parsedStrikes.push({
-                            lat: parseFloat(coordParts[0]),
-                            lng: parseFloat(coordParts[1]),
-                            giatri: "Không có DL",
-                            loaiset: "Không rõ"
+                            lat: parseFloat(coordParts[0]), lng: parseFloat(coordParts[1]), giatri: "Không có DL", loaiset: "Không rõ"
                         });
                     }
                 }
 
                 for (let strike of parsedStrikes) {
                     if (isNaN(strike.lat) || isNaN(strike.lng)) continue;
+
+                    // XỬ LÝ LỌC SÉT THEO TỈNH ĐANG CHỌN (Bằng Bounding Box)
+                    if (selectedProvince !== "all" && provinceBounds[selectedProvince]) {
+                        const b = provinceBounds[selectedProvince];
+                        // Nếu tia sét văng ra ngoài khung chữ nhật của Tỉnh thì bỏ qua luôn
+                        if (strike.lat < b.minLat || strike.lat > b.maxLat || strike.lng < b.minLng || strike.lng > b.maxLng) {
+                            continue;
+                        }
+                    }
 
                     const pt = turf.point([strike.lng, strike.lat]);
                     let isInside = true;
