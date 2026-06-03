@@ -4,7 +4,7 @@ import time
 import sys
 import re
 import hashlib
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 def crawl_lightning_data():
     # 1. CHIÊU TRÒ CHỐNG CACHE
@@ -32,13 +32,11 @@ def crawl_lightning_data():
         if response.status_code == 200:
             raw_text = response.text
             diem_moi = 0
-            diem_bi_loai = 0 # Biến đếm số điểm sét ngoài lãnh thổ bị loại bỏ
+            diem_bi_loai = 0
             
             # LƯỚI VÉT SIÊU RỘNG
             blocks = re.findall(r'\{[^{}]*\}', raw_text)
             valid_blocks = [b for b in blocks if 'lat' in b.lower() and 'lng' in b.lower() and 'nam' in b.lower()]
-            
-            vn_tz = timezone(timedelta(hours=7))
             
             for block in valid_blocks:
                 try:
@@ -51,21 +49,17 @@ def crawl_lightning_data():
                     lat = float(lat_m.group(1))
                     lng = float(lng_m.group(1))
                     
-                    # --- BỘ LỌC LÃNH THỔ & CHỦ QUYỀN VIỆT NAM ---
-                    # Vĩ độ: 6.5 (Nam) đến 23.5 (Bắc)
-                    # Kinh độ: 102.0 (Tây) đến 117.5 (Đông - Bao gồm Hoàng Sa & Trường Sa)
+                    # BỘ LỌC LÃNH THỔ
                     if not (6.5 <= lat <= 23.5 and 102.0 <= lng <= 117.5):
                         diem_bi_loai += 1
-                        continue # Nếu nằm ngoài khung này thì bỏ qua luôn, không lưu
+                        continue
                     
-                    # Lấy cường độ và loại
                     giatri_m = re.search(r'["\']?giatri["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE)
                     giatri = float(giatri_m.group(1)) if giatri_m else 0.0
                     
                     loaiset_m = re.search(r'["\']?loaiset["\']?\s*:\s*(\d+)', block, re.IGNORECASE)
                     loaiset = int(loaiset_m.group(1)) if loaiset_m else 0
                     
-                    # Lấy thời gian
                     nam = int(re.search(r'["\']?nam["\']?\s*:\s*(\d+)', block, re.IGNORECASE).group(1))
                     thang = int(re.search(r'["\']?thang["\']?\s*:\s*(\d+)', block, re.IGNORECASE).group(1))
                     ngay = int(re.search(r'["\']?ngay["\']?\s*:\s*(\d+)', block, re.IGNORECASE).group(1))
@@ -75,7 +69,9 @@ def crawl_lightning_data():
                     giay_m = re.search(r'["\']?giay["\']?\s*:\s*(\d+)', block, re.IGNORECASE)
                     giay = int(giay_m.group(1)) if giay_m else 0
                     
-                    dt = datetime(nam, thang, ngay, gio, phut, giay, tzinfo=vn_tz)
+                    # --- ĐIỂM SỬA LỖI TRỌNG TÂM ---
+                    # Khai báo rõ ràng với Python rằng đây là giờ chuẩn UTC
+                    dt = datetime(nam, thang, ngay, gio, phut, giay, tzinfo=timezone.utc)
                     ts = dt.timestamp()
                     
                     key_string = f"{ts}_{lat}_{lng}"
