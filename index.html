@@ -383,7 +383,7 @@
                 
                 const lightningDatabase = await response.json();
                 if (lightningDatabase) {
-                    lightningArray = Object.values(lightningDatabase).sort((a, b) => b.timestamp - a.timestamp);
+                    lightningArray = Object.values(lightningDatabase).sort((a, b) => b.t - a.t);
                     filterLightning(true);
                 }
                 statusLabel.innerText = "Hoạt động tốt (Firebase)";
@@ -451,15 +451,15 @@
 
             for (let i = 0; i < lightningArray.length; i++) {
                 const record = lightningArray[i];
-                const timestamp = record.timestamp;
+                const timestamp = record.t;
 
                 if (timestamp < threshold) break; 
 
                 let parsedStrikes = [];
 
                 if (record.is_new_format) {
-                    let typeText = record.loaiset === 0 ? "Xuống đất" : "Trong mây";
-                    let giatriText = (record.giatri === 0 || record.giatri === 0.0) ? "Không có DL" : `${record.giatri} kA`;
+                    let typeText = record.l === 0 ? "Xuống đất" : "Trong mây";
+                    let giatriText = (record.g === 0 || record.g === 0.0) ? "Không có DL" : `${record.g} kA`;
                     parsedStrikes.push({
                         lat: record.lat, lng: record.lng, giatri: giatriText, loaiset: typeText
                     });
