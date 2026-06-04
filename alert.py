@@ -34,6 +34,7 @@ def get_cell_key(lat, lng):
 
 def build_spatial_index():
     global SPATIAL_INDEX
+    print("Bắt đầu nạp 15 file lưới điện...")
     for region, filename in GRID_FILES.items():
         if os.path.exists(filename):
             try:
@@ -55,6 +56,7 @@ def build_spatial_index():
                                 "lat": pole_lat, "lng": pole_lng, "region": region.upper(), "props": feature.get("properties", {})
                             })
             except Exception: pass 
+    print("Nạp lưới điện hoàn tất!")
 
 def find_nearest_pole_fast(lat, lng):
     nearest_pole, nearest_dist, detected_region = "Không xác định", float('inf'), "LÀO CAI - YÊN BÁI"
@@ -90,29 +92,53 @@ def process_alerts():
     except Exception as e:
         sys.exit(1)
 
-    if not db_data: return
+    if not db_data: 
+        print("Kho dữ liệu trống.")
+        return
 
+    # KIỂM TRA NHANH: Xem có cần phải nạp lưới điện không?
+    can_tinh_toan = False
+    for key, strike in db_data.items():
+        if strike and isinstance(strike, dict) and strike.get("da_canh_bao") is False:
+            lat, lng = strike.get("lat"), strike.get("lng")
+            loaiset = strike.get("loaiset", 0)
+            # Chỉ xử lý nếu là sét đất (0) và nằm trong tọa độ LC-YB
+            if loaiset == 0 and (21.23 <= lat <= 22.85) and (103.50 <= lng <= 105.00):
+                can_tinh_toan = True
+                break
+    
+    if not can_tinh_toan:
+        print("Không có điểm sét nguy hiểm nào mới ở LC-YB. Nghỉ ngơi sớm!")
+        
+        # Vẫn phải lật cờ da_canh_bao = True cho các tia sét vô hại (sét mây, sét ở xa) để lần sau khỏi đọc lại
+        updates_bo_qua = {}
+        for key, strike in db_data.items():
+             if strike and isinstance(strike, dict) and strike.get("da_canh_bao") is False:
+                 updated_strike = strike.copy()
+                 updated_strike["da_canh_bao"] = True
+                 updates_bo_qua[key] = updated_strike
+        if updates_bo_qua:
+             requests.patch(FIREBASE_URL, json=updates_bo_qua, timeout=60)
+        return
+
+    # NẾU CÓ SÉT NGUY HIỂM, BẮT ĐẦU NẠP LƯỚI ĐIỆN VÀ ĐO KHOẢNG CÁCH
     build_spatial_index()
     updates = {}
     
     for key, strike in db_data.items():
-        # Chỉ xử lý nếu điểm sét có cờ da_canh_bao là False
         if strike and isinstance(strike, dict) and strike.get("da_canh_bao") is False:
             lat, lng = strike.get("lat"), strike.get("lng")
             loaiset = strike.get("loaiset", 0)
             giatri = strike.get("giatri", 0)
             ts = strike.get("timestamp", 0)
             
-            # Cờ lật sang True ngay lập tức để lần sau không đọc lại
             updated_strike = strike.copy()
             updated_strike["da_canh_bao"] = True
             updates[key] = updated_strike
             
-            # Lọc Sét Mặt Đất (loaiset == 0) và nằm trong vùng LC-YB
             if loaiset == 0 and (21.23 <= lat <= 22.85) and (103.50 <= lng <= 105.00):
                 vung_quan_ly, ten_cot, khoang_cach = find_nearest_pole_fast(lat, lng)
                 
-                # Kiểm tra <= 150m
                 if khoang_cach <= KHOANG_CACH_MAX:
                     dt = datetime.fromtimestamp(ts, tz=timezone(timedelta(hours=7)))
                     time_str = dt.strftime("%H:%M:%S ngày %d/%m")
@@ -127,12 +153,9 @@ def process_alerts():
                     )
                     send_telegram(msg)
 
-    # Cập nhật các điểm đã xử lý lên Firebase (lưu cờ da_canh_bao = True)
     if updates:
         requests.patch(FIREBASE_URL, json=updates, timeout=60)
         print(f"Đã xử lý cảnh báo và lật cờ cho {len(updates)} điểm sét.")
-    else:
-        print("Không có điểm sét mới nào cần xử lý.")
 
 if __name__ == "__main__":
     process_alerts()
