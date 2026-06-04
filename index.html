@@ -170,7 +170,6 @@
             layers: [osmLayer] 
         });
 
-        // LỚP GOM CỤM DÀNH CHO SÉT
         const lightningLayer = L.markerClusterGroup({
             iconCreateFunction: function(cluster) {
                 const count = cluster.getChildCount();
@@ -219,9 +218,6 @@
             "⚡ Cảnh báo Sét đánh": lightningLayer
         };
 
-        // ===============================================
-        // TẠO LỚP GOM CỤM ĐẶC BIỆT DÀNH CHO LƯỚI ĐIỆN
-        // ===============================================
         for (let key in dienLucList) {
             gridLayers[key] = L.markerClusterGroup({
                 iconCreateFunction: function(cluster) {
@@ -229,11 +225,10 @@
                     let size = 40;
                     if (count >= 100) size = 50;
 
-                    // Cụm điện: Nền Xanh dương, viền Xanh đậm, Icon phích cắm 🔌
                     return L.divIcon({
                         html: `<div style="background-color: rgba(0, 123, 255, 0.85); border: 2px solid #0056b3; color: white; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); line-height: 1.1;">
-                                  <span style="font-size: 14px;">🔌</span>
-                                  <span>${count}</span>
+                                   <span style="font-size: 14px;">🔌</span>
+                                   <span>${count}</span>
                                </div>`,
                         className: 'custom-cluster-icon',
                         iconSize: L.point(size, size)
@@ -241,8 +236,8 @@
                 },
                 animate: false,
                 chunkedLoading: true,
-                maxClusterRadius: 60, // Bán kính gom để bớt lag
-                disableClusteringAtZoom: 15 // TÍNH NĂNG ĐỈNH CAO: Zoom tới mức 15 là cụm tự động nổ tung để hiện rõ thiết bị
+                maxClusterRadius: 60,
+                disableClusteringAtZoom: 15
             });
             
             overlayMaps[key] = gridLayers[key];
@@ -270,14 +265,9 @@
             className: 'lightning-icon-div', iconSize: [14, 14], iconAnchor: [7, 7]
         });
 
-        const hanoiMarker = L.marker([21.0285, 105.8542], { icon: redStarIcon }).addTo(map);
-        hanoiMarker.bindPopup("<div style='text-align:center; font-weight:bold; font-size:13px;'>THỦ ĐÔ HÀ NỘI</div>");
-
-        const hoangSaMarker = L.marker([16.5000, 112.0000], { icon: islandIcon }).addTo(map);
-        hoangSaMarker.bindTooltip("QUẦN ĐẢO HOÀNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
-        
-        const truongSaMarker = L.marker([9.5000, 112.5000], { icon: islandIcon }).addTo(map);
-        truongSaMarker.bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
+        L.marker([21.0285, 105.8542], { icon: redStarIcon }).addTo(map).bindPopup("<div style='text-align:center; font-weight:bold; font-size:13px;'>THỦ ĐÔ HÀ NỘI</div>");
+        L.marker([16.5000, 112.0000], { icon: islandIcon }).addTo(map).bindTooltip("QUẦN ĐẢO HOÀNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
+        L.marker([9.5000, 112.5000], { icon: islandIcon }).addTo(map).bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
         let poleFeaturesByLayer = {}; 
         let currentExportData = [];
@@ -365,7 +355,6 @@
                                 } return {};
                             },
                             pointToLayer: function (feature, latlng) {
-                                // ĐỔI MÀU CỘT ĐIỆN: Thành màu Xanh dương để phân biệt với điểm sét khi bung cụm
                                 return L.circleMarker(latlng, { radius: 5, fillColor: "#007bff", color: "#ffffff", weight: 1, fillOpacity: 0.9 });
                             },
                             onEachFeature: function (feature, layer) {
@@ -378,7 +367,7 @@
                                     layer.bindPopup(popupContent);
                                 }
                             }
-                        }).addTo(gridLayers[key]); // Thêm vào lớp Gom cụm lưới điện
+                        }).addTo(gridLayers[key]);
                     }
                 } catch (error) {}
             }
@@ -389,7 +378,7 @@
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
             try {
-                const response = await fetch('https://database-set-7a73d-default-rtdb.asia-southeast1.firebasedatabase.app/lightning_data.json');
+                const response = await fetch('https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/lightning_data.json');
                 if (!response.ok) throw new Error("Lỗi kết nối Firebase");
                 
                 const lightningDatabase = await response.json();
