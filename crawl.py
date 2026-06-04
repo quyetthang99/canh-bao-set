@@ -15,12 +15,13 @@ TELEGRAM_BOT_TOKEN = "8793144066:AAGL6xHoVM4aGzNyxBgSubsNaK-hztwn36w"
 TELEGRAM_CHAT_ID = "-5111679075"
 
 # ==============================================================================
-# CÔNG TẮC LỌC SÉT BÁO QUA TELEGRAM (Chọn 1 trong 3 chế độ)
-# "ALL" : Báo cáo mọi loại sét (Mặt đất + Trong mây)
-# "CG"  : CHỈ báo cáo sét mặt đất (Nguy hiểm cho lưới điện)
-# "IC"  : CHỈ báo cáo sét trong mây
+# CÔNG TẮC LỌC TIN NHẮN BÁO ĐỘNG SỰ CỐ
 # ==============================================================================
+# "CG": Chỉ báo Sét mặt đất | "IC": Chỉ báo Sét trong mây | "ALL": Báo tất cả
 LOAI_SET_CANH_BAO = "CG"
+
+# Khoảng cách tối đa (mét) từ điểm sét đến cột điện để kích hoạt báo động
+KHOANG_CACH_BAO_DONG_MAX = 150 
 
 # ==============================================================================
 # DANH SÁCH FILE JSON LƯỚI ĐIỆN ĐÃ CÓ SẴN TRÊN GITHUB
@@ -171,27 +172,32 @@ def crawl_lightning_data():
                     type_str = "Trong mây (IC) ☁️" if loai_hien_tai == "IC" else "Xuống đất (CG) 🔴"
                     intensity_str = f"{giatri} kA" if giatri > 0 else "Chưa xác định"
 
-                    # So sánh với công tắc đã cài đặt
-                    cho_phep_bao_dong = False
+                    # Kiểm tra công tắc loại sét (CG, IC, ALL)
+                    cho_phep_loai_set = False
                     if LOAI_SET_CANH_BAO == "ALL" or LOAI_SET_CANH_BAO == loai_hien_tai:
-                        cho_phep_bao_dong = True
+                        cho_phep_loai_set = True
 
                     if key not in db_data:
+                        # 1. LƯU LÊN FIREBASE ĐẦY ĐỦ DỮ LIỆU
                         updates[key] = {"lat": lat, "lng": lng, "giatri": giatri, "loaiset": loaiset, "timestamp": ts, "is_new_format": True}
                         db_data[key] = updates[key] 
                         diem_moi += 1
                         
-                        if is_lao_cai_yb and cho_phep_bao_dong:
+                        # 2. XỬ LÝ LỌC ĐỂ BẮN TELEGRAM
+                        if is_lao_cai_yb and cho_phep_loai_set:
                             vung_quan_ly, ten_cot, khoang_cach = find_nearest_pole(lat, lng, grid_data)
-                            dist_str = f"{khoang_cach:.1f} mét" if khoang_cach != float('inf') else "N/A"
-                            alert_msg = (
-                                f"🚨 *[ĐIỆN LỰC {vung_quan_ly}] PHÁT HIỆN SÉT ĐÁNH*\n"
-                                f"▪️ *Thời gian:* {time_alert_str}\n"
-                                f"▪️ *Tọa độ:* `{lat:.4f}, {lng:.4f}`\n"
-                                f"▪️ *Loại:* {type_str} | *Cường độ:* {intensity_str}\n"
-                                f"▪️ *📍 Cột gần nhất:* {ten_cot} (Cách {dist_str})"
-                            )
-                            send_telegram_alert(alert_msg)
+                            
+                            # CHỈ KÍCH HOẠT KHI KHOẢNG CÁCH <= 100M
+                            if khoang_cach <= KHOANG_CACH_BAO_DONG_MAX:
+                                dist_str = f"{khoang_cach:.1f} mét"
+                                alert_msg = (
+                                    f"🚨 *[SỰ CỐ TIỀM ẨN] ĐIỆN LỰC {vung_quan_ly}*\n"
+                                    f"▪️ *Thời gian:* {time_alert_str}\n"
+                                    f"▪️ *Tọa độ:* `{lat:.4f}, {lng:.4f}`\n"
+                                    f"▪️ *Loại:* {type_str} | *Cường độ:* {intensity_str}\n"
+                                    f"▪️ *📍 Cột bị đe dọa:* {ten_cot} (Cách {dist_str} 🔥)"
+                                )
+                                send_telegram_alert(alert_msg)
                             
                     else:
                         old_giatri = db_data[key].get("giatri", 0)
@@ -203,15 +209,19 @@ def crawl_lightning_data():
                             db_data[key] = updated_record
                             diem_cap_nhat += 1
                             
-                            if is_lao_cai_yb and cho_phep_bao_dong:
+                            if is_lao_cai_yb and cho_phep_loai_set:
                                 vung_quan_ly, ten_cot, khoang_cach = find_nearest_pole(lat, lng, grid_data)
-                                update_msg = (
-                                    f"📊 *[CẬP NHẬT kA] ĐIỆN LỰC {vung_quan_ly}*\n"
-                                    f"▪️ *Tia sét lúc:* {time_alert_str}\n"
-                                    f"▪️ *Cường độ đo được:* `{giatri} kA` 🔥\n"
-                                    f"▪️ *📍 Cột bị ảnh hưởng:* {ten_cot}"
-                                )
-                                send_telegram_alert(update_msg)
+                                
+                                # CẬP NHẬT CŨNG CHỈ BÁO KHI <= 100M
+                                if khoang_cach <= KHOANG_CACH_BAO_DONG_MAX:
+                                    dist_str = f"{khoang_cach:.1f} mét"
+                                    update_msg = (
+                                        f"📊 *[CẬP NHẬT kA] ĐIỆN LỰC {vung_quan_ly}*\n"
+                                        f"▪️ *Tia sét lúc:* {time_alert_str}\n"
+                                        f"▪️ *Cường độ đo được:* `{giatri} kA` 🔥\n"
+                                        f"▪️ *📍 Cột bị đe dọa:* {ten_cot} (Cách {dist_str})"
+                                    )
+                                    send_telegram_alert(update_msg)
                             
                 except Exception: continue 
             
