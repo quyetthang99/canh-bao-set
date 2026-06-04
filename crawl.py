@@ -6,6 +6,28 @@ import re
 import hashlib
 from datetime import datetime, timezone
 
+# ==============================================================================
+# CẤU HÌNH ĐƯỜNG TRUYỀN TELEGRAM (Thay thông số của bạn vào đây)
+# ==============================================================================
+TELEGRAM_BOT_TOKEN = "8793144066:AAGL6xHoVM4aGzNyxBgSubsNaK-hztwn36w"
+TELEGRAM_CHAT_ID = "-5111679075"
+
+def send_telegram_alert(message):
+    """Hàm gửi tin nhắn cảnh báo khẩn cấp qua Telegram"""
+    if not TELEGRAM_BOT_TOKEN or "ĐIỀN_" in TELEGRAM_BOT_TOKEN:
+        return # Bỏ qua nếu chưa cấu hình token
+    
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown" # Cho phép viết in đậm, icon đẹp mắt
+    }
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Lỗi gửi Telegram: {e}")
+
 def crawl_lightning_data():
     current_ts = int(time.time())
     source_url = f"http://hymetnet.gov.vn/lightningmaps/?_t={current_ts}" 
@@ -45,10 +67,9 @@ def crawl_lightning_data():
         if response.status_code == 200:
             raw_text = response.text
             diem_moi = 0
-            diem_cap_nhat = 0 # Biến đếm số điểm sét được bổ sung cường độ
+            diem_cap_nhat = 0
             diem_bi_loai = 0
             
-            # GÓI DỮ LIỆU SIÊU NHẸ: Chỉ chứa điểm cần thêm mới, cập nhật hoặc cần xóa
             updates = {} 
             
             blocks = re.findall(r'\{[^{}]*\}', raw_text)
@@ -68,7 +89,7 @@ def crawl_lightning_data():
                     if lat > lng:
                         lat, lng = lng, lat
                     
-                    # BỘ LỌC LÃNH THỔ: Quét toàn bộ Việt Nam (tiết kiệm dung lượng mà vẫn đủ rộng)
+                    # Bộ lọc lãnh thổ Việt Nam
                     if not (6.5 <= lat <= 23.5 and 102.0 <= lng <= 117.5):
                         diem_bi_loai += 1
                         continue
@@ -94,56 +115,84 @@ def crawl_lightning_data():
                     key_string = f"{ts}_{lat}_{lng}"
                     key = hashlib.md5(key_string.encode()).hexdigest()
                     
+                    # Phát hiện tỉnh trọng điểm để bắn thông báo khẩn cấp riêng
+                    is_lao_cai = (21.84 <= lat <= 22.85) and (103.50 <= lng <= 104.64)
+                    is_yen_bai = (21.23 <= lat <= 22.32) and (103.95 <= lng <= 105.00)
+                    
+                    # Đổi múi giờ in ra tin nhắn Telegram cho đúng giờ Việt Nam (UTC+7)
+                    local_hour = (gio + 7) % 24
+                    time_alert_str = f"{local_hour:02d}:{phut:02d}:{giay:02d} ngày {ngay:02d}/{thang:02d}"
+                    
+                    type_str = "Trong mây (IC)" if loaiset == 1 else "Xuống đất (CG) 🔴"
+                    intensity_str = f"{giatri} kA" if giatri > 0 else "Chưa có dữ liệu"
+
                     if key not in db_data:
-                        # 1. NẾU LÀ TIA SÉT HOÀN TOÀN MỚI
+                        # 1. NẾU CÓ ĐIỂM SÉT MỚI TINH
                         updates[key] = {
-                            "lat": lat,
-                            "lng": lng,
-                            "giatri": giatri,
-                            "loaiset": loaiset,
-                            "timestamp": ts,
-                            "is_new_format": True
+                            "lat": lat, "lng": lng, "giatri": giatri,
+                            "loaiset": loaiset, "timestamp": ts, "is_new_format": True
                         }
                         db_data[key] = updates[key] 
                         diem_moi += 1
-                    else:
-                        # 2. NẾU TIA SÉT ĐÃ CÓ TRONG KHO (Kiểm tra xem có cần bổ sung Cường độ không)
-                        old_giatri = db_data[key].get("giatri", 0)
                         
-                        # Điều kiện cập nhật: Dữ liệu cũ đang là 0, và dữ liệu mới cào về lớn hơn 0
+                        # ƯU TIÊN CAO: Nếu sét đánh trúng địa bàn Lào Cai hoặc Yên Bái, bắn ngay Telegram!
+                        if is_lao_cai or is_yen_bai:
+                            province_name = "LÀO CAI" if is_lao_cai else "YÊN BÁI"
+                            alert_msg = (
+                                f"🚨 *CẢNH BÁO: PHÁT HIỆN SÉT ĐÁNH ĐỊA BÀN {province_name}*\n"
+                                f"▪️ *Thời gian:* {time_alert_str} (Giờ VN)\n"
+                                f"▪️ *Tọa độ:* `{lat:.4f}, {lng:.4f}`\n"
+                                f"▪️ *Loại sét:* {type_str}\n"
+                                f"▪️ *Cường độ:* {intensity_str}\n"
+                                f"👉 _Vui lòng kiểm tra vận hành lưới điện khu vực gần tọa độ trên!_"
+                            )
+                            send_telegram_alert(alert_msg)
+                            
+                    else:
+                        # 2. NẾU SÉT CŨ ĐƯỢC CẬP NHẬT THÊM CƯỜNG ĐỘ kA
+                        old_giatri = db_data[key].get("giatri", 0)
                         if (old_giatri == 0 or old_giatri == 0.0) and giatri > 0:
-                            # Copy dữ liệu cũ và cập nhật thêm cường độ + loại sét mới
                             updated_record = db_data[key].copy()
                             updated_record["giatri"] = giatri
                             updated_record["loaiset"] = loaiset
                             
-                            # Đưa vào gói updates để PATCH đẩy lên Firebase
                             updates[key] = updated_record
                             db_data[key] = updated_record
                             diem_cap_nhat += 1
                             
+                            # Nếu điểm vừa bổ sung cường độ nằm ở khu vực của mình, gửi tin thông báo cập nhật
+                            if is_lao_cai or is_yen_bai:
+                                province_name = "LÀO CAI" if is_lao_cai else "YÊN BÁI"
+                                update_msg = (
+                                    f"📊 *CẬP NHẬT CƯỜNG ĐỘ SÉT ({province_name})*\n"
+                                    f"▪️ *Tia sét lúc:* {time_alert_str}\n"
+                                    f"▪️ *Tọa độ:* `{lat:.4f}, {lng:.4f}`\n"
+                                    f"▪️ *Cường độ đo được:* `{giatri} kA` 🔥\n"
+                                    f"▪️ *Loại sét:* {type_str}"
+                                )
+                                send_telegram_alert(update_msg)
+                            
                 except Exception:
                     continue 
             
-            # Tự động truy quét và gửi lệnh xóa các điểm cũ hơn 7 ngày
+            # Tự động dọn rác 7 ngày
             seven_days_ago = current_ts - 604800
             diem_xoa = 0
             for k, v in db_data.items():
                 if v.get("timestamp", 0) < seven_days_ago:
-                    updates[k] = None # Lệnh gửi lên Firebase báo "Hãy xóa điểm này đi"
+                    updates[k] = None 
                     diem_xoa += 1
             
-            # Gửi gói dữ liệu lên Firebase bằng phương thức PATCH siêu nhẹ
             if updates:
                 print(f"Đang đẩy/xóa dữ liệu bằng PATCH lên Firebase ({len(updates)} tác vụ)...")
                 patch_response = requests.patch(FIREBASE_URL, json=updates, timeout=60)
                 if patch_response.status_code == 200:
-                    print(f"✅ HOÀN TẤT! Đã lưu {diem_moi} điểm mới. BỔ SUNG CƯỜNG ĐỘ cho {diem_cap_nhat} điểm cũ. Đã dọn {diem_xoa} rác.")
+                    print(f"✅ HOÀN TẤT! Đã lưu {diem_moi} điểm mới. BỔ SUNG CƯỜNG ĐỘ cho {diem_cap_nhat} điểm cũ.")
                 else:
                     print(f"❌ Lỗi Firebase: {patch_response.text}")
                     sys.exit(1)
             else:
-                print("✅ Hệ thống quét xong. Không có sét mới, cũng không có dữ liệu cường độ nào được cập nhật thêm.")
+                print("✅ Hệ thống quét xong. Không có biến động dữ liệu.")
 
         else:
             print(f"❌ Lỗi HTTP: {response.status_code}")
