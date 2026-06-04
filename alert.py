@@ -34,7 +34,7 @@ def get_cell_key(lat, lng):
 
 def build_spatial_index():
     global SPATIAL_INDEX
-    print("Bắt đầu nạp 15 file lưới điện...")
+    print("Bắt đầu nạp file lưới điện...")
     for region, filename in GRID_FILES.items():
         if os.path.exists(filename):
             try:
@@ -96,21 +96,17 @@ def process_alerts():
         print("Kho dữ liệu trống.")
         return
 
-    # KIỂM TRA NHANH: Xem có cần phải nạp lưới điện không?
     can_tinh_toan = False
     for key, strike in db_data.items():
         if strike and isinstance(strike, dict) and strike.get("da_canh_bao") is False:
             lat, lng = strike.get("lat"), strike.get("lng")
             loaiset = strike.get("loaiset", 0)
-            # Chỉ xử lý nếu là sét đất (0) và nằm trong tọa độ LC-YB
             if loaiset == 0 and (21.23 <= lat <= 22.85) and (103.50 <= lng <= 105.00):
                 can_tinh_toan = True
                 break
     
     if not can_tinh_toan:
-        print("Không có điểm sét nguy hiểm nào mới ở LC-YB. Nghỉ ngơi sớm!")
-        
-        # Vẫn phải lật cờ da_canh_bao = True cho các tia sét vô hại (sét mây, sét ở xa) để lần sau khỏi đọc lại
+        print("Không có điểm sét nguy hiểm nào mới ở LC-YB. Bỏ qua bước đo đạc.")
         updates_bo_qua = {}
         for key, strike in db_data.items():
              if strike and isinstance(strike, dict) and strike.get("da_canh_bao") is False:
@@ -121,7 +117,6 @@ def process_alerts():
              requests.patch(FIREBASE_URL, json=updates_bo_qua, timeout=60)
         return
 
-    # NẾU CÓ SÉT NGUY HIỂM, BẮT ĐẦU NẠP LƯỚI ĐIỆN VÀ ĐO KHOẢNG CÁCH
     build_spatial_index()
     updates = {}
     
@@ -140,7 +135,8 @@ def process_alerts():
                 vung_quan_ly, ten_cot, khoang_cach = find_nearest_pole_fast(lat, lng)
                 
                 if khoang_cach <= KHOANG_CACH_MAX:
-                    dt = datetime.fromtimestamp(ts, tz=timezone(timedelta(hours=7)))
+                    # SỬA LỖI MÚI GIỜ TẠI ĐÂY: Cộng thêm 7 tiếng vào timestamp gốc
+                    dt = datetime.fromtimestamp(ts, tz=timezone(timedelta(hours=7))) + timedelta(hours=7)
                     time_str = dt.strftime("%H:%M:%S ngày %d/%m")
                     intensity = f"{giatri} kA" if giatri > 0 else "Chưa xác định"
                     
@@ -148,8 +144,9 @@ def process_alerts():
                         f"🚨 *[SỰ CỐ TIỀM ẨN] ĐIỆN LỰC {vung_quan_ly}*\n"
                         f"▪️ *Thời gian:* {time_str}\n"
                         f"▪️ *Tọa độ:* `{lat:.4f}, {lng:.4f}`\n"
-                        f"▪️ *Loại:* Xuống đất (CG) 🔴 | *Cường độ:* {intensity}\n"
-                        f"▪️ *📍 Cột bị đe dọa:* {ten_cot} (Cách {khoang_cach:.1f} mét 🔥)"
+                        f"▪️ *Loại:* Xuống đất (CG) ⚡ | *Cường độ:* {intensity}\n"
+                        f"▪️ *📍 Cột bị đe dọa:* {ten_cot} (Cách {khoang_cach:.1f} mét )"
+                        f"🌐 *Xem chi tiết tại:* https://quyetthang99.github.io/canh-bao-set/"
                     )
                     send_telegram(msg)
 
