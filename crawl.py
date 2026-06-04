@@ -45,8 +45,10 @@ def crawl_lightning_data():
         if response.status_code == 200:
             raw_text = response.text
             diem_moi = 0
+            diem_cap_nhat = 0 # Biến đếm số điểm sét được bổ sung cường độ
             diem_bi_loai = 0
             
+            # GÓI DỮ LIỆU SIÊU NHẸ: Chỉ chứa điểm cần thêm mới, cập nhật hoặc cần xóa
             updates = {} 
             
             blocks = re.findall(r'\{[^{}]*\}', raw_text)
@@ -66,17 +68,10 @@ def crawl_lightning_data():
                     if lat > lng:
                         lat, lng = lng, lat
                     
-                    # ==================================================
-                    # BỘ LỌC ĐẶC NHIỆM: CHỈ LẤY LÀO CAI VÀ YÊN BÁI
-                    # ==================================================
-                    is_lao_cai = (21.84 <= lat <= 22.85) and (103.50 <= lng <= 104.64)
-                    is_yen_bai = (21.23 <= lat <= 22.32) and (103.95 <= lng <= 105.00)
-                    
-                    # Nếu không nằm trong khung Lào Cai và cũng không nằm trong khung Yên Bái -> Vứt!
-                    if not (is_lao_cai or is_yen_bai):
+                    # BỘ LỌC LÃNH THỔ: Quét toàn bộ Việt Nam (tiết kiệm dung lượng mà vẫn đủ rộng)
+                    if not (6.5 <= lat <= 23.5 and 102.0 <= lng <= 117.5):
                         diem_bi_loai += 1
                         continue
-                    # ==================================================
                     
                     giatri_m = re.search(r'["\']?giatri["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE)
                     giatri = float(giatri_m.group(1)) if giatri_m else 0.0
@@ -100,6 +95,7 @@ def crawl_lightning_data():
                     key = hashlib.md5(key_string.encode()).hexdigest()
                     
                     if key not in db_data:
+                        # 1. NẾU LÀ TIA SÉT HOÀN TOÀN MỚI
                         updates[key] = {
                             "lat": lat,
                             "lng": lng,
@@ -110,26 +106,44 @@ def crawl_lightning_data():
                         }
                         db_data[key] = updates[key] 
                         diem_moi += 1
+                    else:
+                        # 2. NẾU TIA SÉT ĐÃ CÓ TRONG KHO (Kiểm tra xem có cần bổ sung Cường độ không)
+                        old_giatri = db_data[key].get("giatri", 0)
+                        
+                        # Điều kiện cập nhật: Dữ liệu cũ đang là 0, và dữ liệu mới cào về lớn hơn 0
+                        if (old_giatri == 0 or old_giatri == 0.0) and giatri > 0:
+                            # Copy dữ liệu cũ và cập nhật thêm cường độ + loại sét mới
+                            updated_record = db_data[key].copy()
+                            updated_record["giatri"] = giatri
+                            updated_record["loaiset"] = loaiset
+                            
+                            # Đưa vào gói updates để PATCH đẩy lên Firebase
+                            updates[key] = updated_record
+                            db_data[key] = updated_record
+                            diem_cap_nhat += 1
+                            
                 except Exception:
                     continue 
             
+            # Tự động truy quét và gửi lệnh xóa các điểm cũ hơn 7 ngày
             seven_days_ago = current_ts - 604800
             diem_xoa = 0
             for k, v in db_data.items():
                 if v.get("timestamp", 0) < seven_days_ago:
-                    updates[k] = None 
+                    updates[k] = None # Lệnh gửi lên Firebase báo "Hãy xóa điểm này đi"
                     diem_xoa += 1
             
+            # Gửi gói dữ liệu lên Firebase bằng phương thức PATCH siêu nhẹ
             if updates:
-                print(f"Đang đẩy/xóa dữ liệu bằng PATCH lên Firebase ({len(updates)} bản ghi thay đổi)...")
+                print(f"Đang đẩy/xóa dữ liệu bằng PATCH lên Firebase ({len(updates)} tác vụ)...")
                 patch_response = requests.patch(FIREBASE_URL, json=updates, timeout=60)
                 if patch_response.status_code == 200:
-                    print(f"✅ HOÀN TẤT! Lấy {diem_moi} điểm (LC+YB). Đã XÓA {diem_bi_loai} điểm ngoài tỉnh.")
+                    print(f"✅ HOÀN TẤT! Đã lưu {diem_moi} điểm mới. BỔ SUNG CƯỜNG ĐỘ cho {diem_cap_nhat} điểm cũ. Đã dọn {diem_xoa} rác.")
                 else:
                     print(f"❌ Lỗi Firebase: {patch_response.text}")
                     sys.exit(1)
             else:
-                print(f"✅ Quét xong. Không có sét mới ở LC+YB. Bỏ qua {diem_bi_loai} điểm ngoài tỉnh.")
+                print("✅ Hệ thống quét xong. Không có sét mới, cũng không có dữ liệu cường độ nào được cập nhật thêm.")
 
         else:
             print(f"❌ Lỗi HTTP: {response.status_code}")
