@@ -170,6 +170,7 @@
             layers: [osmLayer] 
         });
 
+        // LỚP GOM CỤM DÀNH CHO SÉT
         const lightningLayer = L.markerClusterGroup({
             iconCreateFunction: function(cluster) {
                 const count = cluster.getChildCount();
@@ -196,30 +197,54 @@
         }).addTo(map);
 
         const dienLucList = {
-            " ĐL Văn Bàn": "vanban.json", 
-            " ĐL Lào Cai": "laocai.json",
-            " ĐL SaPa": "sapa.json",
-            " ĐL Bát Xát": "batxat.json",
-            " ĐL Bắc Hà": "bacha.json",
-            " ĐL Bảo Thắng": "baothang.json",
-            " ĐL Bảo Yên": "baoyen.json",
-            " ĐL Mường Khương": "muongkhuong.json",
-            " ĐL Yên Bái": "yenbai.json",
-            " ĐL Trấn Yên": "tranyen.json",
-            " ĐL Văn Yên": "vanyen.json",
-            " ĐL Lục Yên": "lucyen.json",
-            " ĐL Nghĩa Lộ": "nghialo.json",
-            " Cao Thế LC": "caothelc.json",
-            " Cao Thế YB": "caotheyb.json"
+            "🔌 ĐL Văn Bàn": "vanban.json", 
+            "🔌 ĐL Lào Cai": "laocai.json",
+            "🔌 ĐL SaPa": "sapa.json",
+            "🔌 ĐL Bát Xát": "batxat.json",
+            "🔌 ĐL Bắc Hà": "bacha.json",
+            "🔌 ĐL Bảo Thắng": "baothang.json",
+            "🔌 ĐL Bảo Yên": "baoyen.json",
+            "🔌 ĐL Mường Khương": "muongkhuong.json",
+            "🔌 ĐL Yên Bái": "yenbai.json",
+            "🔌 ĐL Trấn Yên": "tranyen.json",
+            "🔌 ĐL Văn Yên": "vanyen.json",
+            "🔌 ĐL Lục Yên": "lucyen.json",
+            "🔌 ĐL Nghĩa Lộ": "nghialo.json",
+            "⚡ Cao Thế LC": "caothelc.json",
+            "⚡ Cao Thế YB": "caotheyb.json"
         };
 
         const gridLayers = {};
         const overlayMaps = {
-            "⚡ Cảnh báo Sét đánh": lightningLayer
+            "🔴 Cảnh báo Sét đánh": lightningLayer
         };
 
+        // ===============================================
+        // TẠO LỚP GOM CỤM ĐẶC BIỆT DÀNH CHO LƯỚI ĐIỆN
+        // ===============================================
         for (let key in dienLucList) {
-            gridLayers[key] = L.layerGroup(); 
+            gridLayers[key] = L.markerClusterGroup({
+                iconCreateFunction: function(cluster) {
+                    const count = cluster.getChildCount();
+                    let size = 40;
+                    if (count >= 100) size = 50;
+
+                    // Cụm điện: Nền Xanh dương, viền Xanh đậm, Icon phích cắm 🔌
+                    return L.divIcon({
+                        html: `<div style="background-color: rgba(0, 123, 255, 0.85); border: 2px solid #0056b3; color: white; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); line-height: 1.1;">
+                                  <span style="font-size: 14px;">🔌</span>
+                                  <span>${count}</span>
+                               </div>`,
+                        className: 'custom-cluster-icon',
+                        iconSize: L.point(size, size)
+                    });
+                },
+                animate: false,
+                chunkedLoading: true,
+                maxClusterRadius: 60, // Bán kính gom để bớt lag
+                disableClusteringAtZoom: 15 // TÍNH NĂNG ĐỈNH CAO: Zoom tới mức 15 là cụm tự động nổ tung để hiện rõ thiết bị
+            });
+            
             overlayMaps[key] = gridLayers[key];
         }
 
@@ -340,7 +365,8 @@
                                 } return {};
                             },
                             pointToLayer: function (feature, latlng) {
-                                return L.circleMarker(latlng, { radius: 5, fillColor: "#ff8c00", color: "#ffffff", weight: 1, fillOpacity: 0.9 });
+                                // ĐỔI MÀU CỘT ĐIỆN: Thành màu Xanh dương để phân biệt với điểm sét khi bung cụm
+                                return L.circleMarker(latlng, { radius: 5, fillColor: "#007bff", color: "#ffffff", weight: 1, fillOpacity: 0.9 });
                             },
                             onEachFeature: function (feature, layer) {
                                 if (feature.properties) {
@@ -352,7 +378,7 @@
                                     layer.bindPopup(popupContent);
                                 }
                             }
-                        }).addTo(gridLayers[key]);
+                        }).addTo(gridLayers[key]); // Thêm vào lớp Gom cụm lưới điện
                     }
                 } catch (error) {}
             }
@@ -423,8 +449,8 @@
             }
 
             let count = 0;
-            let cgCount = 0; // Đếm sét mặt đất
-            let icCount = 0; // Đếm sét trong mây
+            let cgCount = 0; 
+            let icCount = 0; 
             let insidePolygonData = []; 
 
             let activePoleFeatures = [];
@@ -512,9 +538,9 @@
                     let currentIcon = lightningIconRed; 
                     if (strike.loaiset === "Trong mây") {
                         currentIcon = lightningIconCloud; 
-                        icCount++; // Tăng biến đếm sét mây
+                        icCount++; 
                     } else {
-                        cgCount++; // Sét mặt đất hoặc không rõ sẽ tính là mặt đất
+                        cgCount++; 
                     }
 
                     let colorCode = strike.loaiset.includes("đất") ? "red" : "#ff8c00";
@@ -539,7 +565,6 @@
                 }
             }
             
-            // CẬP NHẬT CÁC BỘ ĐẾM TRÊN GIAO DIỆN
             document.getElementById('lightning-count').innerText = count;
             document.getElementById('cg-count').innerText = cgCount;
             document.getElementById('ic-count').innerText = icCount;
