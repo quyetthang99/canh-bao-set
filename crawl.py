@@ -68,8 +68,9 @@ def crawl_lightning_data():
                     if lat > lng:
                         lat, lng = lng, lat
                     
-                    # BỘ LỌC LÃNH THỔ: Quét toàn bộ Việt Nam (tiết kiệm dung lượng mà vẫn đủ rộng)
-                    if not (6.5 <= lat <= 23.5 and 102.0 <= lng <= 117.5):
+                    # BỘ LỌC LÃNH THỔ: CHỈ LẤY LÀO CAI, YÊN BÁI VÀ VÙNG LÂN CẬN
+                    # Vĩ độ: 21.10 đến 23.00 | Kinh độ: 103.30 đến 105.20
+                    if not (21.10 <= lat <= 23.00 and 103.30 <= lng <= 105.20):
                         diem_bi_loai += 1
                         continue
                     
@@ -124,6 +125,8 @@ def crawl_lightning_data():
                             
                 except Exception:
                     continue 
+            
+            print(f"Đã LỌC BỎ {diem_bi_loai} điểm sét nằm ngoài vùng Lào Cai - Yên Bái.")
             
             # Tự động truy quét và gửi lệnh xóa các điểm cũ hơn 7 ngày
             seven_days_ago = current_ts - 604800
