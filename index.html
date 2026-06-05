@@ -389,7 +389,7 @@
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
             try {
-                const response = await fetch('https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/lightning_data.json');
+                const response = await fetch('https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json');
                 if (!response.ok) throw new Error("Lỗi kết nối Firebase");
                 
                 const lightningDatabase = await response.json();
