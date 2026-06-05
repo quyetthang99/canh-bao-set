@@ -34,7 +34,6 @@
         .filter-section { margin-top: 10px; padding-top: 5px; }
         select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #aaa; font-weight: bold; cursor: pointer; margin-bottom: 8px; }
         
-        /* THIẾT KẾ CÁC NÚT & LỚP */
         .btn-excel { background-color: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; margin-top: 5px; transition: 0.2s; }
         .btn-excel:hover { background-color: #218838; }
         .island-label { font-weight: bold; color: #bd0000; background: rgba(255, 255, 255, 0.9); border: 1px solid #bd0000; border-radius: 4px; font-size: 12px; padding: 4px 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
@@ -149,7 +148,10 @@
                 <input type="text" id="search-input" placeholder="VD: Cột 2, Lâm Sinh..." onkeyup="searchPoles()">
                 <div id="search-results" style="display: none;"></div>
             </div>
-
+            
+            <div style="margin-top: 10px; font-size: 11px; color: #666;">
+                <i>* Chọn Tỉnh để tự động khoanh vùng sét. Bật lớp Lưới điện ở bảng góc trái.</i>
+            </div>
         </div>
     </div>
 
@@ -161,7 +163,6 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     
     <script>
-        // HÀM ẨN/HIỆN BẢNG CẢNH BÁO SÉT
         function toggleInfoPanel() {
             const panel = document.getElementById('main-info-panel');
             const icon = document.getElementById('panel-toggle-icon');
@@ -171,7 +172,6 @@
 
         const provinceBounds = {
             "Lào Cai": { minLat: 21.23, maxLat: 22.85, minLng: 103.50, maxLng: 105.00 },
-            // ... (Giữ nguyên tọa độ các tỉnh)
             "Lai Châu": { minLat: 21.52, maxLat: 22.82, minLng: 102.31, maxLng: 103.63 },
             "Điện Biên": { minLat: 20.83, maxLat: 22.33, minLng: 102.15, maxLng: 103.59 },
             "Sơn La": { minLat: 20.65, maxLat: 22.05, minLng: 103.20, maxLng: 105.02 },
@@ -209,6 +209,39 @@
 
         const map = L.map('map', { center: [22.0000, 104.5000], zoom: 8, layers: [osmLayer] });
 
+        // KHÔI PHỤC: THANH CÔNG CỤ VẼ ĐA GIÁC (DRAW CONTROL)
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        const drawControl = new L.Control.Draw({
+            position: 'topleft',
+            edit: { featureGroup: drawnItems, edit: false, remove: true },
+            draw: {
+                polyline: false, marker: false, circlemarker: false, circle: false,
+                polygon: { allowIntersection: false, showArea: true }, rectangle: true
+            }
+        });
+        map.addControl(drawControl);
+
+        let activePolygonGeoJSON = null; 
+        let activePolygonLayer = null;
+
+        map.on(L.Draw.Event.CREATED, function (e) {
+            drawnItems.clearLayers(); 
+            const layer = e.layer;
+            drawnItems.addLayer(layer);
+            activePolygonGeoJSON = layer.toGeoJSON();
+            activePolygonLayer = layer;
+            filterLightning(); 
+        });
+
+        map.on(L.Draw.Event.DELETED, function (e) {
+            if (drawnItems.getLayers().length === 0) {
+                activePolygonGeoJSON = null;
+                activePolygonLayer = null;
+            }
+            filterLightning();
+        });
+
         // LỚP GOM CỤM DÀNH CHO SÉT
         const lightningLayer = L.markerClusterGroup({
             iconCreateFunction: function(cluster) {
@@ -217,11 +250,7 @@
                 let borderColor = count >= 50 ? '#FD7E14' : '#FFC107';
                 let textColor = count >= 50 ? '#fff' : '#000';
                 let size = count >= 50 ? 45 : 35;
-
-                return L.divIcon({
-                    html: `<div style="background-color: ${bgColor}; border: 2px solid ${borderColor}; color: ${textColor}; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; box-shadow: 0 3px 8px rgba(0,0,0,0.3);">${count}</div>`,
-                    className: 'custom-cluster-icon', iconSize: L.point(size, size)
-                });
+                return L.divIcon({ html: `<div style="background-color: ${bgColor}; border: 2px solid ${borderColor}; color: ${textColor}; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; box-shadow: 0 3px 8px rgba(0,0,0,0.3);">${count}</div>`, className: 'custom-cluster-icon', iconSize: L.point(size, size) });
             },
             animate: false, chunkedLoading: true 
         }).addTo(map);
@@ -243,8 +272,7 @@
                     const count = cluster.getChildCount();
                     let size = count >= 100 ? 50 : 40;
                     return L.divIcon({
-                        html: `<div style="background-color: rgba(0, 123, 255, 0.85); border: 2px solid #0056b3; color: white; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); line-height: 1.1;">
-                                  <span style="font-size: 14px;">🔌</span><span>${count}</span></div>`,
+                        html: `<div style="background-color: rgba(0, 123, 255, 0.85); border: 2px solid #0056b3; color: white; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); line-height: 1.1;"><span>🔌</span><span>${count}</span></div>`,
                         className: 'custom-cluster-icon', iconSize: L.point(size, size)
                     });
                 },
@@ -255,10 +283,8 @@
 
         const baseMaps = { "🗺️ Bản đồ Tiêu chuẩn": osmLayer, "🚗 Bản đồ Giao thông": googleStreets, "🛰️ Bản đồ Vệ tinh": googleSat };
 
-        // ĐỔI SANG COLLAPSED: FALSE ĐỂ CHÈN NÚT CUSTOM SAU ĐÓ
         const layerControl = L.control.layers(baseMaps, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
 
-        // HÀM TẠO NÚT THU GỌN LAYER BẢN ĐỒ
         const layerContainer = layerControl.getContainer();
         const collapseLayerBtn = document.createElement('div');
         collapseLayerBtn.className = 'layer-collapse-btn';
@@ -268,36 +294,29 @@
         collapseLayerBtn.onclick = function(e) {
             e.stopPropagation();
             layerContainer.classList.toggle('custom-collapsed');
-            if (layerContainer.classList.contains('custom-collapsed')) {
-                collapseLayerBtn.innerHTML = '▲ Bật / Tắt Lớp Bản Đồ';
-            } else {
-                collapseLayerBtn.innerHTML = '▼ Thu gọn (Các lớp Bản đồ)';
-            }
+            collapseLayerBtn.innerHTML = layerContainer.classList.contains('custom-collapsed') ? '▲ Bật / Tắt Lớp Bản Đồ' : '▼ Thu gọn (Các lớp Bản đồ)';
         };
 
         map.on('overlayadd overlayremove', function() { filterLightning(); searchPoles(); });
 
-        const lightningIconRed = L.divIcon({
-            html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>',
-            className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]
-        });
+        // KHÔI PHỤC: ICON SÉT VÀ CÁC MỐC HẢI ĐẢO / THỦ ĐÔ
+        const lightningIconRed = L.divIcon({ html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>', className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12] });
+        const lightningIconCloud = L.divIcon({ html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#546E7A" stroke="#ffffff" stroke-width="0.5" d="M17.5,19A4.5,4.5 0 0,0 22,14.5C22,12.18 20.24,10.28 18,10.05C17.44,6.64 14.48,4 11,4C7.71,4 4.86,6.19 3.65,9.17C1.59,9.61 0,11.45 0,13.66C0,16.05 1.95,18 4.34,18H5V16H4.34C3.05,16 2,14.95 2,13.66C2,12.44 2.92,11.41 4.12,11.27L5.05,11.16L5.35,10.29C6.26,7.63 8.78,5.8 11.66,5.8C14.86,5.8 17.52,8.35 17.65,11.5L17.7,12.2L18.4,12.23C20.17,12.33 21.6,13.82 21.6,15.6C21.6,17.42 20.12,18.9 18.3,18.9H17V20.9H17.5Z"></path><path fill="#FFC107" stroke="#ffffff" stroke-width="1" d="M13,22l-3-8h2.5L11.5,5h3.5l3,8h-2.5L17,22L13,22z"></path></svg>', className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
 
-        const lightningIconCloud = L.divIcon({
-            html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#546E7A" stroke="#ffffff" stroke-width="0.5" d="M17.5,19A4.5,4.5 0 0,0 22,14.5C22,12.18 20.24,10.28 18,10.05C17.44,6.64 14.48,4 11,4C7.71,4 4.86,6.19 3.65,9.17C1.59,9.61 0,11.45 0,13.66C0,16.05 1.95,18 4.34,18H5V16H4.34C3.05,16 2,14.95 2,13.66C2,12.44 2.92,11.41 4.12,11.27L5.05,11.16L5.35,10.29C6.26,7.63 8.78,5.8 11.66,5.8C14.86,5.8 17.52,8.35 17.65,11.5L17.7,12.2L18.4,12.23C20.17,12.33 21.6,13.82 21.6,15.6C21.6,17.42 20.12,18.9 18.3,18.9H17V20.9H17.5Z"></path><path fill="#FFC107" stroke="#ffffff" stroke-width="1" d="M13,22l-3-8h2.5L11.5,5h3.5l3,8h-2.5L17,22L13,22z"></path></svg>',
-            className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
-        });
+        const redStarIcon = L.divIcon({ html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2" d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"></path></svg>', className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+        const islandIcon = L.divIcon({ html: '<svg width="14" height="14" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2"></circle></svg>', className: 'lightning-icon-div', iconSize: [14, 14], iconAnchor: [7, 7] });
+
+        const hanoiMarker = L.marker([21.0285, 105.8542], { icon: redStarIcon }).addTo(map).bindPopup("<div style='text-align:center; font-weight:bold; font-size:13px;'>THỦ ĐÔ HÀ NỘI</div>");
+        const hoangSaMarker = L.marker([16.5000, 112.0000], { icon: islandIcon }).addTo(map).bindTooltip("QUẦN ĐẢO HOÀNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
+        const truongSaMarker = L.marker([9.5000, 112.5000], { icon: islandIcon }).addTo(map).bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
         function detectPoleName(properties) {
             if (!properties) return "Không rõ tên";
             let tenDoiTuong = ""; let soHieu = "";
-            const tenKeys = ['tenDoiTuon', 'TenDoiTuong', 'tenDoiTuong', 'TEN_DOI_TUONG'];
-            for (let key of tenKeys) { if (properties[key]) { tenDoiTuong = properties[key]; break; } }
-            const soHieuKeys = ['soHieu', 'SoHieu', 'SO_HIEU'];
-            for (let key of soHieuKeys) { if (properties[key]) { soHieu = properties[key]; break; } }
+            for (let key of ['tenDoiTuon', 'TenDoiTuong', 'tenDoiTuong', 'TEN_DOI_TUONG']) { if (properties[key]) { tenDoiTuong = properties[key]; break; } }
+            for (let key of ['soHieu', 'SoHieu', 'SO_HIEU']) { if (properties[key]) { soHieu = properties[key]; break; } }
             if (tenDoiTuong && soHieu) return `${tenDoiTuong} (${soHieu})`;
-            else if (tenDoiTuong) return tenDoiTuong; 
-            else if (soHieu) return `Số hiệu: ${soHieu}`; 
-            return "Cột chưa đặt tên";
+            return tenDoiTuong || (soHieu ? `Số hiệu: ${soHieu}` : "Cột chưa đặt tên");
         }
 
         let poleFeaturesByLayer = {}; 
@@ -315,20 +334,13 @@
                         poleFeaturesByLayer[key].push(...poles);
 
                         L.geoJSON(data, {
-                            style: function (feature) {
-                                if (feature.geometry.type === "LineString" || feature.geometry.type === "MultiLineString") return { color: "#0056b3", weight: 3, opacity: 0.8 }; 
-                                return {};
-                            },
-                            pointToLayer: function (feature, latlng) {
-                                return L.circleMarker(latlng, { radius: 5, fillColor: "#007bff", color: "#ffffff", weight: 1, fillOpacity: 0.9 });
-                            },
-                            onEachFeature: function (feature, layer) {
-                                if (feature.properties) {
-                                    let popupContent = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
-                                    for (const propKey in feature.properties) {
-                                        if(feature.properties[propKey] !== null) popupContent += `<b>${propKey}:</b> ${feature.properties[propKey]}<br>`;
-                                    }
-                                    layer.bindPopup(popupContent + "</div>");
+                            style: function (f) { return (f.geometry.type === "LineString" || f.geometry.type === "MultiLineString") ? { color: "#0056b3", weight: 3, opacity: 0.8 } : {}; },
+                            pointToLayer: function (f, latlng) { return L.circleMarker(latlng, { radius: 5, fillColor: "#007bff", color: "#ffffff", weight: 1, fillOpacity: 0.9 }); },
+                            onEachFeature: function (f, layer) {
+                                if (f.properties) {
+                                    let p = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
+                                    for (const k in f.properties) if(f.properties[k] !== null) p += `<b>${k}:</b> ${f.properties[k]}<br>`;
+                                    layer.bindPopup(p + "</div>");
                                 }
                             }
                         }).addTo(gridLayers[key]);
@@ -337,23 +349,15 @@
             }
         }
 
-        // HÀM TÌM KIẾM CỘT ĐIỆN VÀ ZOOM
         function searchPoles() {
             const query = document.getElementById('search-input').value.toLowerCase().trim();
             const resultsDiv = document.getElementById('search-results');
             resultsDiv.innerHTML = '';
+            if (query.length < 1) { resultsDiv.style.display = 'none'; return; }
 
-            if (query.length < 1) {
-                resultsDiv.style.display = 'none';
-                return;
-            }
-
-            // Gộp tất cả các cột từ các lớp ĐANG ĐƯỢC BẬT TRÊN BẢN ĐỒ
             let activePoles = [];
             for (let key in gridLayers) {
-                if (map.hasLayer(gridLayers[key]) && poleFeaturesByLayer[key]) {
-                    activePoles = activePoles.concat(poleFeaturesByLayer[key]);
-                }
+                if (map.hasLayer(gridLayers[key]) && poleFeaturesByLayer[key]) activePoles = activePoles.concat(poleFeaturesByLayer[key]);
             }
 
             if (activePoles.length === 0) {
@@ -362,9 +366,7 @@
                 return;
             }
 
-            // Lọc kết quả (giới hạn 15 kết quả để tránh lag)
             let matches = activePoles.filter(p => detectPoleName(p.properties).toLowerCase().includes(query)).slice(0, 15);
-
             if (matches.length === 0) {
                 resultsDiv.style.display = 'block';
                 resultsDiv.innerHTML = '<div style="padding:6px; color:#666; font-size:11px; background:white; border-radius:3px;">Không tìm thấy thiết bị nào khớp.</div>';
@@ -375,14 +377,8 @@
             matches.forEach(match => {
                 let name = detectPoleName(match.properties);
                 let lat, lng;
-                if (match.geometry.type === "Point") {
-                    lng = match.geometry.coordinates[0];
-                    lat = match.geometry.coordinates[1];
-                } else if (match.geometry.type === "MultiPoint") {
-                    lng = match.geometry.coordinates[0][0];
-                    lat = match.geometry.coordinates[0][1];
-                }
-
+                if (match.geometry.type === "Point") { lng = match.geometry.coordinates[0]; lat = match.geometry.coordinates[1]; } 
+                else if (match.geometry.type === "MultiPoint") { lng = match.geometry.coordinates[0][0]; lat = match.geometry.coordinates[0][1]; }
                 let itemDiv = document.createElement('div');
                 itemDiv.className = 'search-item';
                 itemDiv.innerHTML = `<span title="${name}">${name}</span> <button onclick="zoomToSearchedPole(${lat}, ${lng}, '${name}')">Đến</button>`;
@@ -392,9 +388,7 @@
 
         function zoomToSearchedPole(lat, lng, name) {
             map.flyTo([lat, lng], 18, {animate: true, duration: 1.5});
-            setTimeout(() => {
-                L.popup().setLatLng([lat, lng]).setContent(`<b style="color:#0056b3; font-size:14px;">🎯 Vị trí tìm kiếm:</b><br>${name}`).openOn(map);
-            }, 1500);
+            setTimeout(() => { L.popup().setLatLng([lat, lng]).setContent(`<b style="color:#0056b3; font-size:14px;">🎯 Vị trí tìm kiếm:</b><br>${name}`).openOn(map); }, 1500);
         }
 
         async function fetchLightningData() {
@@ -402,7 +396,6 @@
             try {
                 const response = await fetch('https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json');
                 if (!response.ok) throw new Error("Lỗi kết nối Firebase");
-                
                 const lightningDatabase = await response.json();
                 if (lightningDatabase) {
                     lightningArray = Object.values(lightningDatabase).sort((a, b) => b.timestamp - a.timestamp);
@@ -416,15 +409,25 @@
             }
         }
 
+        function exportExcel() {
+            if (!currentExportData || currentExportData.length === 0) { alert("Không có dữ liệu điểm sét nào trong vùng để xuất báo cáo!"); return; }
+            let csvContent = "\uFEFFSTT,Vĩ Độ,Kinh Độ,Thời Gian Ghi Nhận,Cường Độ,Loại Sét,Cột Gần Nhất,Khoảng Cách\n";
+            currentExportData.forEach((row) => {
+                csvContent += `${row.stt},${row.lat},${row.lng},"${row.time}",${row.giatri},${row.loaiset},"${row.poleName}","${row.distSetToCot}"\n`;
+            });
+            const link = document.createElement("a");
+            link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })));
+            link.setAttribute("download", "Bao_Cao_Set.csv");
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        // KHÔI PHỤC: TÍNH NĂNG TÍNH TOÁN KHOẢNG CÁCH SÉT TRONG ĐA GIÁC ĐẾN CỘT
         function filterLightning(autoZoom = false) {
             lightningLayer.clearLayers();
-            
             const filterSeconds = parseInt(document.getElementById('time-filter').value);
             const selectedProvince = document.getElementById('province-filter').value;
             const currentSeconds = Date.now() / 1000;
             const threshold = currentSeconds - filterSeconds;
-
-            // Lấy trạng thái của 2 Checkbox
             const showCG = document.getElementById('chk-cg').checked;
             const showIC = document.getElementById('chk-ic').checked;
 
@@ -437,15 +440,22 @@
             }
 
             let count = 0, cgCount = 0, icCount = 0; 
+            let insidePolygonData = []; 
+            let activePoleFeatures = [];
             
+            for (let key in gridLayers) {
+                if (map.hasLayer(gridLayers[key]) && poleFeaturesByLayer[key]) {
+                    activePoleFeatures = activePoleFeatures.concat(poleFeaturesByLayer[key]);
+                }
+            }
+
             for (let i = 0; i < lightningArray.length; i++) {
                 const record = lightningArray[i];
                 if (record.timestamp < threshold) break; 
 
-                // Tích hợp logic lọc Checkbox
                 let isCloud = record.loaiset === 1 || record.loaiset === "Trong mây";
-                if (isCloud && !showIC) continue; // Nếu là sét mây mà tắt checkbox -> bỏ qua
-                if (!isCloud && !showCG) continue; // Nếu là sét đất mà tắt checkbox -> bỏ qua
+                if (isCloud && !showIC) continue; 
+                if (!isCloud && !showCG) continue; 
 
                 let parsedStrikes = [];
                 if (record.is_new_format) {
@@ -461,14 +471,39 @@
                         if (strike.lat < b.minLat || strike.lat > b.maxLat || strike.lng < b.minLng || strike.lng > b.maxLng) continue;
                     }
 
+                    // KIỂM TRA SÉT CÓ NẰM TRONG ĐA GIÁC ĐÃ VẼ KHÔNG
+                    const pt = turf.point([strike.lng, strike.lat]);
+                    let isInside = true;
+                    if (activePolygonGeoJSON) {
+                        if (!turf.booleanPointInPolygon(pt, activePolygonGeoJSON)) isInside = false; 
+                    }
+                    if (!isInside) continue; 
+
                     const dateObj = new Date(record.timestamp * 1000);
                     const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
+
+                    // TÍNH TOÁN CỘT GẦN NHẤT
+                    let nearestPoleName = "Chưa bật lưới điện";
+                    let distSetToCot = "N/A";
+                    if (activePoleFeatures.length > 0) {
+                        const poleCollection = turf.featureCollection(activePoleFeatures);
+                        const nearestPoleFeature = turf.nearestPoint(pt, poleCollection);
+                        nearestPoleName = detectPoleName(nearestPoleFeature.properties);
+                        const dS2C = turf.distance(pt, nearestPoleFeature, {units: 'meters'});
+                        distSetToCot = `${dS2C.toFixed(1)} m`;
+                    }
+
+                    insidePolygonData.push({
+                        stt: count + 1, lat: strike.lat.toFixed(4), lng: strike.lng.toFixed(4),
+                        giatri: strike.giatri, loaiset: strike.loaiset, time: timeString, 
+                        poleName: nearestPoleName, distSetToCot: distSetToCot
+                    });
 
                     let currentIcon = lightningIconRed; 
                     if (strike.loaiset === "Trong mây") { currentIcon = lightningIconCloud; icCount++; } 
                     else { cgCount++; }
-
                     let colorCode = strike.loaiset.includes("đất") ? "red" : "#ff8c00";
+
                     const popupHTML = `
                         <div style="font-family: Arial; font-size: 13px; width: 230px; line-height: 1.5;">
                             <b style="color:${colorCode}; font-size:14px;">⚡ THÔNG TIN SÉT</b><hr style="margin:5px 0;">
@@ -476,10 +511,10 @@
                             <b>Thời gian:</b> <span style="color:blue; font-weight:bold;">${timeString}</span><br>
                             <b>Cường độ:</b> <span style="color:#d32f2f; font-weight:bold;">${strike.giatri}</span><br>
                             <b>Loại sét:</b> ${strike.loaiset}<br>
+                            <span style="color:#e65100;"><b>Cột gần nhất:</b> ${nearestPoleName} (${distSetToCot})</span>
                         </div>
                     `;
-
-                    const marker = L.marker([strike.lat, strike.lng], { icon: currentIcon }).bindPopup(popupHTML);
+                    const marker = L.marker([strike.lat, strike.lng], { icon: currentIcon }).bindPopup(popupHTML).bindTooltip(popupHTML, { direction: 'top', offset: [0, -15], opacity: 0.95 });
                     lightningLayer.addLayer(marker);
                     count++;
                 }
@@ -488,11 +523,46 @@
             document.getElementById('lightning-count').innerText = count;
             document.getElementById('cg-count').innerText = cgCount;
             document.getElementById('ic-count').innerText = icCount;
+            currentExportData = insidePolygonData;
+
+            // TẠO BẢNG BÁO CÁO KHI VẼ ĐA GIÁC
+            if (activePolygonLayer) {
+                let tableRowsHtml = "";
+                insidePolygonData.forEach((item) => {
+                    let intensityColor = (item.giatri === "Không có DL") ? "#777" : "#d32f2f";
+                    tableRowsHtml += `<tr style="border-bottom: 1px solid #e0e0e0;">
+                        <td style="padding: 6px; text-align: center;">${item.stt}</td>
+                        <td style="padding: 6px; text-align: center; font-size: 11px;">${item.lat},<br>${item.lng}</td>
+                        <td style="padding: 6px; text-align: center; font-weight:bold; color:${intensityColor};">${item.giatri}</td>
+                        <td style="padding: 6px; text-align: center; color: ${item.loaiset.includes('Không') ? '#777' : '#0056b3'};">${item.loaiset}</td>
+                        <td style="padding: 6px; text-align: center; color: #555; white-space: nowrap;">${item.time}</td>
+                        <td style="padding: 6px; font-weight: bold; color: #0056b3; text-align: center; max-width: 150px; white-space: normal; word-wrap: break-word; line-height: 1.4;">${item.poleName}</td>
+                        <td style="padding: 6px; color: #d32f2f; font-weight: bold; text-align: center; white-space: nowrap;">${item.distSetToCot}</td>
+                    </tr>`;
+                });
+                if (insidePolygonData.length === 0) tableRowsHtml = `<tr><td colspan="7" style="text-align:center; padding:15px; color:#777;">Không tìm thấy điểm sét nào.</td></tr>`;
+
+                const reportContent = `
+                    <div style="font-family: Arial; font-size: 12px; width: 700px;"> 
+                        <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">KẾT QUẢ KHOANH VÙNG</h4>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <p style="margin: 0;">Tổng số sét trong vùng: <b style="font-size:14px; color:red;">${insidePolygonData.length}</b></p>
+                            <button class="btn-excel" onclick="exportExcel()">⬇ Xuất file Excel</button>
+                        </div>
+                        <div style="max-height: 220px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                                <thead style="background: #f5f5f5; position: sticky; top: 0; box-shadow: 0 1px 0 #ccc; z-index: 10;">
+                                    <tr><th style="padding: 6px; border-bottom: 1px solid #ccc;">STT</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Vị trí (Tọa độ)</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Cường độ</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Loại sét</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Thời gian</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Cột gần nhất</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Sét → Cột</th></tr>
+                                </thead>
+                                <tbody>${tableRowsHtml}</tbody>
+                            </table>
+                        </div>
+                    </div>`;
+                activePolygonLayer.bindPopup(reportContent, { maxWidth: 750 }).openPopup();
+            }
         }
 
-        loadGeoData(); 
-        fetchLightningData(); 
-        setInterval(fetchLightningData, 180000); 
+        loadGeoData(); fetchLightningData(); setInterval(fetchLightningData, 180000); 
     </script>
 </body>
 </html>
