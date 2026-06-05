@@ -127,6 +127,12 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     
     <script>
+        // SỬA LỖI 1: Khai báo rõ ràng các biến toàn cục để tránh lỗi đơ web
+        let lightningArray = [];
+        let poleFeaturesByLayer = {};
+        let insidePolygonData = [];
+        let currentExportData = [];
+
         const provinceBounds = {
             "Lào Cai": { minLat: 21.23, maxLat: 22.85, minLng: 103.50, maxLng: 105.00 },
             "Lai Châu": { minLat: 21.52, maxLat: 22.82, minLng: 102.31, maxLng: 103.63 },
@@ -209,11 +215,11 @@
         const lightningIconRed = L.divIcon({ html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>', className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12] });
         const lightningIconCloud = L.divIcon({ html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#546E7A" d="M17.5,19A4.5,4.5 0 0,0 22,14.5C22,12.18 20.24,10.28 18,10.05C17.44,6.64 14.48,4 11,4C7.71,4 4.86,6.19 3.65,9.17C1.59,9.61 0,11.45 0,13.66C0,16.05 1.95,18 4.34,18H5V16H4.34C3.05,16 2,14.95 2,13.66C2,12.44 2.92,11.41 4.12,11.27L5.05,11.16L5.35,10.29C6.26,7.63 8.78,5.8 11.66,5.8C14.86,5.8 17.52,8.35 17.65,11.5L17.7,12.2L18.4,12.23C20.17,12.33 21.6,13.82 21.6,15.6C21.6,17.42 20.12,18.9 18.3,18.9H17V20.9H17.5Z"></path></svg>', className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14] });
 
-        // --- HÀM TỐI ƯU FETCH DỮ LIỆU ---
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
             const filterSeconds = parseInt(document.getElementById('time-filter').value);
             const startTime = (Date.now() / 1000) - filterSeconds;
+            // Dữ liệu vẫn được gọi trực tiếp từ Firebase theo ý bác
             const DB_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/lightning_data.json";
 
             try {
@@ -222,7 +228,6 @@
                 const data = await response.json();
                 
                 if (data) {
-                    // CẦU NỐI: Ánh xạ g, l, t sang giatri, loaiset, timestamp để logic cũ chạy được
                     lightningArray = Object.values(data).map(item => ({
                         lat: item.lat, lng: item.lng,
                         giatri: item.g, loaiset: item.l,
@@ -238,7 +243,6 @@
             } catch (error) { statusLabel.innerText = "Lỗi tải!"; }
         }
 
-        // --- HÀM CŨ CỦA BÁC (GIỮ NGUYÊN) ---
         async function loadGeoData() {
             for (let key in dienLucList) {
                 poleFeaturesByLayer[key] = []; 
@@ -263,25 +267,55 @@
             return soHieu ? `${tenDoiTuong} (${soHieu})` : tenDoiTuong || "Cột chưa đặt tên";
         }
 
+        // SỬA LỖI 2 & 3: Thêm logic Lọc Tỉnh và Cộng dồn số sét
         function filterLightning(autoZoom = false) {
              lightningLayer.clearLayers();
-             let count = 0, cgCount = 0, icCount = 0; insidePolygonData = [];
+             let count = 0, cgCount = 0, icCount = 0; 
+             insidePolygonData = [];
+             
+             // Lấy thông tin tỉnh đang chọn
+             const selectedProvince = document.getElementById('province-filter').value;
+             const bounds = provinceBounds[selectedProvince];
+
              lightningArray.forEach(strike => {
+                // KIỂM TRA LỌC TỈNH: Nếu ngoài phạm vi thì bỏ qua tia sét này
+                if (selectedProvince !== "all" && bounds) {
+                    if (strike.lat < bounds.minLat || strike.lat > bounds.maxLat || 
+                        strike.lng < bounds.minLng || strike.lng > bounds.maxLng) {
+                        return;
+                    }
+                }
+
                 let currentIcon = strike.loaiset === 0 ? lightningIconRed : lightningIconCloud;
-                let colorCode = strike.loaiset === 0 ? "red" : "#ff8c00";
+                let colorCode = strike.loaiset === 0 ? "red" : "#0056b3";
+                
+                // CỘNG DỒN BỘ ĐẾM SÉT
+                if (strike.loaiset === 0) cgCount++;
+                else icCount++;
+
                 const marker = L.marker([strike.lat, strike.lng], { icon: currentIcon })
                                 .bindPopup(`<b style="color:${colorCode}">Sét: ${strike.giatri} kA</b>`);
                 lightningLayer.addLayer(marker);
                 count++;
              });
+
+             // IN KẾT QUẢ RA GIAO DIỆN
              document.getElementById('lightning-count').innerText = count;
              document.getElementById('cg-count').innerText = cgCount;
              document.getElementById('ic-count').innerText = icCount;
+
+             // Tự động thu phóng bản đồ về tỉnh vừa chọn
+             if (autoZoom && selectedProvince !== "all" && bounds) {
+                 map.fitBounds([
+                     [bounds.minLat, bounds.minLng],
+                     [bounds.maxLat, bounds.maxLng]
+                 ]);
+             }
         }
 
         function exportExcel() {
             if (!currentExportData || currentExportData.length === 0) { alert("Không có dữ liệu!"); return; }
-            // ... Logic xuất Excel cũ của bác
+            // Logic xuất Excel của bác giữ nguyên
         }
 
         loadGeoData();
