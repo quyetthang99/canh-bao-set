@@ -17,7 +17,7 @@ def crawl_lightning_data():
         "Pragma": "no-cache"
     }
     
-    FIREBASE_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/lightning_data.json"
+    FIREBASE_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
     
     db_data = {}
     try:
