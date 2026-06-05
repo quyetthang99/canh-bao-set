@@ -29,14 +29,10 @@ jobs:
       - name: 🔌 Chạy script chuyển đổi tự động các file .zip hạ tầng sang .json
         run: python convert_zip.py
 
-      - name: 💾 Lưu vĩnh viễn và đẩy tất cả dữ liệu lên GitHub
+      - name: Lưu vĩnh viễn và đẩy tất cả dữ liệu lên GitHub
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          
-          # Lệnh quan trọng: Gom cả dữ liệu sét và TẤT CẢ các file .json lưới điện mới đẻ ra
-          git add duongset.json database_set.json *.json
-          
-          git commit -m "Auto-update dữ liệu sét và đồng bộ hạ tầng lưới điện các Điện lực" || exit 0
-          git pull --rebase
+          git add .
+          git commit -m "Auto-update dữ liệu bản đồ" || echo "Không có thay đổi mới để commit"
           git push
