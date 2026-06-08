@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 def crawl_lightning_data():
     # 1. TỰ ĐỘNG TẠO KHUNG THỜI GIAN (Quét dữ liệu trong 10 phút gần nhất)
     now = datetime.now(timezone.utc)
-    past = now - timedelta(hours=6)
+    past = now - timedelta(minutes=10)
     
     end_time = now.strftime("%Y-%m-%dT%H:%M:%S.000Z")
     start_time = past.strftime("%Y-%m-%dT%H:%M:%S.000Z")
