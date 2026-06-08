@@ -1,4 +1,3 @@
-```python
 import requests
 import time
 import sys
@@ -224,4 +223,3 @@ def crawl_lightning_data():
 
 if __name__ == "__main__":
     crawl_lightning_data()
-```
