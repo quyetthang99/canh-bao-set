@@ -126,8 +126,21 @@ def crawl_lightning_data():
     current_ts = int(time.time())
     seven_days_ago = current_ts - 604800
     diem_xoa = 0
+    
     for k, v in db_data.items():
-        if v.get("timestamp", 0) < seven_days_ago:
+        ts_val = v.get("timestamp", 0)
+        
+        # Khắc phục lỗi xung đột: Nếu dữ liệu cũ đang là chuỗi (chữ), thì ép nó về số
+        if isinstance(ts_val, str):
+            try:
+                # Dịch chuỗi ISO sang dạng số timestamp
+                dt = datetime.fromisoformat(ts_val.replace("Z", "+00:00"))
+                ts_val = dt.timestamp()
+            except:
+                ts_val = 0 # Lỗi format thì coi như rác, gán = 0 để xóa luôn
+                
+        # So sánh an toàn khi cả 2 đều đã là số
+        if float(ts_val) < seven_days_ago:
             updates[k] = None  # Gửi lệnh dọn sạch mốc cũ trên Firebase
             diem_xoa += 1
 
