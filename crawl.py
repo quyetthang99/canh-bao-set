@@ -1,260 +1,227 @@
+```python
 import requests
-import json
 import time
 import sys
-import re
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+FIREBASE_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+}
 
 
 def crawl_lightning_data():
+
     current_ts = int(time.time())
-
-    source_url = f"http://hymetnet.gov.vn/lightningmaps/?_t={current_ts}"
-    proxy_url = f"https://api.allorigins.win/raw?url={source_url}&disableCache=true"
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache"
-    }
-
-    FIREBASE_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
 
     db_data = {}
 
     try:
         print("Đang tải dữ liệu lịch sử từ Firebase...")
-        fb_response = requests.get(FIREBASE_URL, timeout=30)
 
-        if fb_response.status_code == 200 and fb_response.json() is not None:
-            db_data = fb_response.json()
+        fb_response = requests.get(
+            FIREBASE_URL,
+            timeout=30
+        )
+
+        if fb_response.status_code == 200:
+            data = fb_response.json()
+
+            if data:
+                db_data = data
 
     except Exception as e:
         print(f"Lỗi đọc Firebase: {e}")
 
     try:
-        print("Đang bóc tách mã nguồn...")
 
-        use_proxy = False
+        print("Đang lấy dữ liệu sét từ EVN Tools...")
 
-        try:
-            response = requests.get(source_url, headers=headers, timeout=15)
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(minutes=10)
 
-            if response.status_code != 200:
-                use_proxy = True
+        url = "https://evntools.com/api/lightning/geojson"
 
-        except Exception:
-            use_proxy = True
+        params = {
+            "start_time": start_time.isoformat().replace("+00:00", "Z"),
+            "end_time": end_time.isoformat().replace("+00:00", "Z"),
+            "limit": 50000,
 
-        if use_proxy:
-            print("Kết nối trực tiếp thất bại, dùng Proxy...")
-            response = requests.get(proxy_url, headers=headers, timeout=60)
+            # Vùng Lào Cai - Yên Bái
+            "min_lat": 21.10,
+            "max_lat": 23.00,
+            "min_lon": 103.30,
+            "max_lon": 105.20
+        }
 
-        if response.status_code == 200:
+        response = requests.get(
+            url,
+            params=params,
+            headers=HEADERS,
+            timeout=60
+        )
 
-            raw_text = response.text
-
-            diem_moi = 0
-            diem_cap_nhat = 0
-            diem_bi_loai = 0
-
-            updates = {}
-
-            blocks = re.findall(r'\{[^{}]*\}', raw_text)
-
-            valid_blocks = [
-                b for b in blocks
-                if 'lat' in b.lower()
-                and 'lng' in b.lower()
-                and 'nam' in b.lower()
-            ]
-
-            for block in valid_blocks:
-
-                try:
-                    lat_m = re.search(
-                        r'["\']?lat["\']?\s*:\s*([-\d.]+)',
-                        block,
-                        re.IGNORECASE
-                    )
-
-                    lng_m = re.search(
-                        r'["\']?lng["\']?\s*:\s*([-\d.]+)',
-                        block,
-                        re.IGNORECASE
-                    )
-
-                    if not lat_m or not lng_m:
-                        continue
-
-                    lat = float(lat_m.group(1))
-                    lng = float(lng_m.group(1))
-
-                    if lat > lng:
-                        lat, lng = lng, lat
-
-                    if not (
-                        21.10 <= lat <= 23.00
-                        and 103.30 <= lng <= 105.20
-                    ):
-                        diem_bi_loai += 1
-                        continue
-
-                    giatri_m = re.search(
-                        r'["\']?giatri["\']?\s*:\s*([-\d.]+)',
-                        block,
-                        re.IGNORECASE
-                    )
-
-                    giatri = float(giatri_m.group(1)) if giatri_m else 0.0
-
-                    loaiset_m = re.search(
-                        r'["\']?loaiset["\']?\s*:\s*(\d+)',
-                        block,
-                        re.IGNORECASE
-                    )
-
-                    loaiset = int(loaiset_m.group(1)) if loaiset_m else 0
-
-                    nam = int(re.search(
-                        r'["\']?nam["\']?\s*:\s*(\d+)',
-                        block,
-                        re.IGNORECASE
-                    ).group(1))
-
-                    thang = int(re.search(
-                        r'["\']?thang["\']?\s*:\s*(\d+)',
-                        block,
-                        re.IGNORECASE
-                    ).group(1))
-
-                    ngay = int(re.search(
-                        r'["\']?ngay["\']?\s*:\s*(\d+)',
-                        block,
-                        re.IGNORECASE
-                    ).group(1))
-
-                    gio = int(re.search(
-                        r'["\']?gio["\']?\s*:\s*(\d+)',
-                        block,
-                        re.IGNORECASE
-                    ).group(1))
-
-                    phut = int(re.search(
-                        r'["\']?phut["\']?\s*:\s*(\d+)',
-                        block,
-                        re.IGNORECASE
-                    ).group(1))
-
-                    giay_m = re.search(
-                        r'["\']?giay["\']?\s*:\s*(\d+)',
-                        block,
-                        re.IGNORECASE
-                    )
-
-                    giay = int(giay_m.group(1)) if giay_m else 0
-
-                    dt = datetime(
-                        nam,
-                        thang,
-                        ngay,
-                        gio,
-                        phut,
-                        giay,
-                        tzinfo=timezone.utc
-                    )
-
-                    ts = dt.timestamp()
-
-                    key_string = f"{ts}_{lat}_{lng}"
-                    key = hashlib.md5(key_string.encode()).hexdigest()
-
-                    if key not in db_data:
-
-                        updates[key] = {
-                            "lat": lat,
-                            "lng": lng,
-                            "giatri": giatri,
-                            "loaiset": loaiset,
-                            "timestamp": ts,
-                            "is_new_format": True
-                        }
-
-                        db_data[key] = updates[key]
-                        diem_moi += 1
-
-                    else:
-
-                        old_giatri = db_data[key].get("giatri", 0)
-
-                        if (old_giatri == 0 or old_giatri == 0.0) and giatri > 0:
-
-                            updated_record = db_data[key].copy()
-
-                            updated_record["giatri"] = giatri
-                            updated_record["loaiset"] = loaiset
-
-                            updates[key] = updated_record
-                            db_data[key] = updated_record
-
-                            diem_cap_nhat += 1
-
-                except Exception:
-                    continue
-
-            print(
-                f"Đã LỌC BỎ {diem_bi_loai} điểm sét nằm ngoài vùng Lào Cai - Yên Bái."
-            )
-
-            seven_days_ago = current_ts - 604800
-
-            diem_xoa = 0
-
-            for k, v in db_data.items():
-
-                if v.get("timestamp", 0) < seven_days_ago:
-                    updates[k] = None
-                    diem_xoa += 1
-
-            if updates:
-
-                print(
-                    f"Đang đẩy/xóa dữ liệu bằng PATCH lên Firebase ({len(updates)} tác vụ)..."
-                )
-
-                patch_response = requests.patch(
-                    FIREBASE_URL,
-                    json=updates,
-                    timeout=60
-                )
-
-                if patch_response.status_code == 200:
-
-                    print(
-                        f"✅ HOÀN TẤT! Đã lưu {diem_moi} điểm mới. "
-                        f"BỔ SUNG CƯỜNG ĐỘ cho {diem_cap_nhat} điểm cũ. "
-                        f"Đã dọn {diem_xoa} rác."
-                    )
-
-                else:
-                    print(f"❌ Lỗi Firebase: {patch_response.text}")
-                    sys.exit(1)
-
-            else:
-                print(
-                    "✅ Hệ thống quét xong. Không có sét mới, "
-                    "cũng không có dữ liệu cường độ nào được cập nhật thêm."
-                )
-
-        else:
-            print(f"❌ Lỗi HTTP: {response.status_code}")
+        if response.status_code != 200:
+            print(f"❌ Lỗi API: {response.status_code}")
             sys.exit(1)
 
+        geojson = response.json()
+
+        features = geojson.get("features", [])
+
+        print(f"Tìm thấy {len(features)} điểm sét")
+
+        updates = {}
+
+        diem_moi = 0
+        diem_cap_nhat = 0
+        diem_bi_loai = 0
+
+        for feature in features:
+
+            try:
+
+                geometry = feature.get("geometry", {})
+                properties = feature.get("properties", {})
+
+                coords = geometry.get("coordinates")
+
+                if not coords or len(coords) < 2:
+                    continue
+
+                lng = float(coords[0])
+                lat = float(coords[1])
+
+                if not (
+                    21.10 <= lat <= 23.00
+                    and 103.30 <= lng <= 105.20
+                ):
+                    diem_bi_loai += 1
+                    continue
+
+                timestamp_str = properties.get("timestamp")
+
+                if not timestamp_str:
+                    continue
+
+                dt = datetime.fromisoformat(
+                    timestamp_str.replace("Z", "+00:00")
+                )
+
+                ts = dt.timestamp()
+
+                giatri = properties.get("giatri")
+
+                if giatri is None:
+                    giatri = 0
+
+                loaiset = properties.get("loaiset", 0)
+
+                key_string = f"{ts}_{lat}_{lng}"
+                key = hashlib.md5(
+                    key_string.encode()
+                ).hexdigest()
+
+                if key not in db_data:
+
+                    record = {
+                        "lat": lat,
+                        "lng": lng,
+                        "giatri": giatri,
+                        "loaiset": loaiset,
+                        "timestamp": ts,
+                        "source": properties.get("source", "vaisala"),
+                        "is_new_format": True
+                    }
+
+                    updates[key] = record
+                    db_data[key] = record
+
+                    diem_moi += 1
+
+                else:
+
+                    old_giatri = db_data[key].get(
+                        "giatri",
+                        0
+                    )
+
+                    if (
+                        (old_giatri == 0 or old_giatri == 0.0)
+                        and giatri > 0
+                    ):
+
+                        updated_record = db_data[key].copy()
+
+                        updated_record["giatri"] = giatri
+                        updated_record["loaiset"] = loaiset
+
+                        updates[key] = updated_record
+                        db_data[key] = updated_record
+
+                        diem_cap_nhat += 1
+
+            except Exception:
+                continue
+
+        print(
+            f"Đã LỌC BỎ {diem_bi_loai} điểm ngoài vùng Lào Cai - Yên Bái."
+        )
+
+        seven_days_ago = current_ts - 604800
+
+        diem_xoa = 0
+
+        for k, v in list(db_data.items()):
+
+            if v.get("timestamp", 0) < seven_days_ago:
+
+                updates[k] = None
+                diem_xoa += 1
+
+        if updates:
+
+            print(
+                f"Đang đẩy/xóa dữ liệu lên Firebase ({len(updates)} tác vụ)..."
+            )
+
+            patch_response = requests.patch(
+                FIREBASE_URL,
+                json=updates,
+                timeout=60
+            )
+
+            if patch_response.status_code == 200:
+
+                print(
+                    f"✅ HOÀN TẤT! "
+                    f"Đã lưu {diem_moi} điểm mới. "
+                    f"Bổ sung {diem_cap_nhat} điểm. "
+                    f"Đã dọn {diem_xoa} điểm cũ."
+                )
+
+            else:
+
+                print(
+                    f"❌ Lỗi Firebase: {patch_response.text}"
+                )
+
+                sys.exit(1)
+
+        else:
+
+            print(
+                "✅ Không có dữ liệu mới để cập nhật."
+            )
+
     except Exception as e:
-        print(f"❌ Lỗi mạng: {e}")
+
+        print(f"❌ Lỗi: {e}")
         sys.exit(1)
 
 
 if __name__ == "__main__":
     crawl_lightning_data()
+```
