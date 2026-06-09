@@ -7,7 +7,7 @@ import hashlib
 from datetime import datetime, timezone, timedelta
 
 def crawl_lightning_data():
-    print("🚀 KHỞI ĐỘNG HỆ THỐNG QUÉT KÉP (NGUỒN CHÍNH: HYMETNET | NGUỒN PHỤ: VAISALA)...")
+    print("🚀 KHỞI ĐỘNG HỆ THỐNG QUÉT KÉP (CHỐNG GHI ĐÈ | NGUỒN CHÍNH: HYMETNET)...")
     
     # 1. TẠO KHUNG THỜI GIAN LÙI 45 PHÚT 
     now = datetime.now(timezone.utc)
@@ -35,7 +35,6 @@ def crawl_lightning_data():
         "Accept": "application/json"
     }
 
-    # CẤU HÌNH FIREBASE WEB
     FIREBASE_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
     
     # 2. TẢI DỮ LIỆU CŨ TỪ FIREBASE
@@ -49,8 +48,9 @@ def crawl_lightning_data():
         print(f"Lỗi đọc Firebase: {e}")
 
     updates = {}
-    diem_moi = 0
-    diem_cap_nhat = 0
+    diem_moi_hymetnet = 0
+    diem_moi_vaisala = 0
+    diem_bi_trung = 0 # Biến đếm số điểm bị loại bỏ do trùng lặp
 
     # =====================================================================
     # LUỒNG 1 (CHÍNH): CÀO DỮ LIỆU TỪ HYMETNET
@@ -60,7 +60,6 @@ def crawl_lightning_data():
     try:
         res_h = requests.get(url_hymetnet, headers=headers_hymetnet, timeout=15)
         if res_h.status_code != 200:
-            print("Kết nối trực tiếp thất bại, dùng Proxy để lách luật...")
             res_h = requests.get(proxy_hymetnet, headers=headers_hymetnet, timeout=30)
             
         if res_h.status_code == 200:
@@ -68,14 +67,12 @@ def crawl_lightning_data():
             blocks = re.findall(r'\{[^{}]*\}', raw_text)
             valid_blocks = [b for b in blocks if 'lat' in b.lower() and 'lng' in b.lower() and 'nam' in b.lower()]
             
-            diem_hymetnet = 0
             for block in valid_blocks:
                 try:
                     lat = float(re.search(r'["\']?lat["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE).group(1))
                     lng = float(re.search(r'["\']?lng["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE).group(1))
                     if lat > lng: lat, lng = lng, lat
                     
-                    # Cắt khung địa lý Lào Cai - Yên Bái
                     if not (21.40 <= lat <= 22.60 and 103.70 <= lng <= 105.30):
                         continue
                         
@@ -90,18 +87,20 @@ def crawl_lightning_data():
                     ngay = int(re.search(r'["\']?ngay["\']?\s*:\s*(\d+)', block, re.IGNORECASE).group(1))
                     gio = int(re.search(r'["\']?gio["\']?\s*:\s*(\d+)', block, re.IGNORECASE).group(1))
                     phut = int(re.search(r'["\']?phut["\']?\s*:\s*(\d+)', block, re.IGNORECASE).group(1))
-                    
                     giay_m = re.search(r'["\']?giay["\']?\s*:\s*(\d+)', block, re.IGNORECASE)
                     giay = int(giay_m.group(1)) if giay_m else 0
                     
                     dt = datetime(nam, thang, ngay, gio, phut, giay, tzinfo=timezone.utc)
                     ts = dt.timestamp()
                     
-                    # Chỉ lấy dữ liệu trong 45 phút gần đây (45 phút = 2700 giây)
                     if current_ts - ts > 2700: 
                         continue
 
-                    key = hashlib.md5(f"{ts}_{lat}_{lng}".encode()).hexdigest()
+                    # THUẬT TOÁN CHỐNG TRÙNG LẶP: Làm tròn tọa độ 4 số thập phân (sai số ~11m)
+                    lat_round = round(lat, 4)
+                    lng_round = round(lng, 4)
+                    ts_int = int(ts)
+                    key = hashlib.md5(f"{ts_int}_{lat_round}_{lng_round}".encode()).hexdigest()
                     
                     if key not in db_data:
                         updates[key] = {
@@ -110,12 +109,11 @@ def crawl_lightning_data():
                             "src": "Hymetnet", "is_new_format": True
                         }
                         db_data[key] = updates[key]
-                        diem_moi += 1
-                        diem_hymetnet += 1
+                        diem_moi_hymetnet += 1
                 except Exception:
                     continue
             hymetnet_success = True
-            print(f"✅ Luồng CHÍNH (Hymetnet) hoạt động tốt. Tìm thấy {diem_hymetnet} điểm sét.")
+            print(f"✅ Luồng CHÍNH (Hymetnet) hoạt động tốt. Lấy thành công {diem_moi_hymetnet} điểm.")
         else:
             print(f"❌ Luồng CHÍNH (Hymetnet) báo lỗi HTTP {res_h.status_code}")
     except Exception as e:
@@ -123,7 +121,7 @@ def crawl_lightning_data():
 
 
     # =====================================================================
-    # LUỒNG 2 (PHỤ): CÀO DỮ LIỆU TỪ VAISALA (BỔ SUNG/DỰ PHÒNG)
+    # LUỒNG 2 (PHỤ): CÀO DỮ LIỆU TỪ VAISALA (CHỈ BỔ SUNG NẾU CHƯA CÓ)
     # =====================================================================
     print("\n[LUỒNG 2 - PHỤ] Đang quét bổ sung từ máy chủ EVNTools (Vaisala)...")
     vaisala_success = False
@@ -132,7 +130,6 @@ def crawl_lightning_data():
             res_v = requests.get(api_url_vaisala, headers=headers_vaisala, timeout=20)
             if res_v.status_code == 200:
                 features = res_v.json().get("features", [])
-                diem_vaisala = 0
                 
                 for feature in features:
                     props = feature.get("properties", {})
@@ -157,32 +154,28 @@ def crawl_lightning_data():
                             ts = dt.timestamp()
                         except: continue
 
-                    key = hashlib.md5(f"{ts}_{lat}_{lng}".encode()).hexdigest()
+                    # Dùng chung thuật toán làm tròn để khớp với Luồng 1
+                    lat_round = round(lat, 4)
+                    lng_round = round(lng, 4)
+                    ts_int = int(ts)
+                    key = hashlib.md5(f"{ts_int}_{lat_round}_{lng_round}".encode()).hexdigest()
                     
-                    # NẾU CÓ SẴN (Do Hymetnet lấy trước đó) -> KIỂM TRA CẬP NHẬT CƯỜNG ĐỘ
-                    if key in db_data:
-                        old_giatri = db_data[key].get("giatri", 0)
-                        if (old_giatri == 0 or old_giatri == 0.0) and giatri > 0:
-                            rec = db_data[key].copy()
-                            rec["giatri"] = giatri
-                            # Gắn đè nhãn nguồn sang Vaisala nếu nó cập nhật được độ nét
-                            rec["src"] = "Hymetnet + Vaisala" 
-                            updates[key] = rec
-                            db_data[key] = rec
-                            diem_cap_nhat += 1
+                    # CƠ CHẾ CHỐNG GHI ĐÈ: Nếu đã có khóa này rồi thì bỏ qua hoàn toàn
+                    if key in db_data or key in updates:
+                        diem_bi_trung += 1
+                        continue
                     else:
-                        # NẾU HYMETNET BỎ SÓT -> VAISALA BỔ SUNG VÀO
+                        # NẾU HYMETNET BỎ SÓT -> VAISALA MỚI ĐƯỢC PHÉP BỔ SUNG VÀO
                         updates[key] = {
                             "lat": lat, "lng": lng, "giatri": giatri,
                             "loaiset": loaiset, "timestamp": ts,
                             "src": nguon, "is_new_format": True
                         }
                         db_data[key] = updates[key] 
-                        diem_moi += 1
-                        diem_vaisala += 1
+                        diem_moi_vaisala += 1
                         
                 vaisala_success = True
-                print(f"✅ Luồng PHỤ (Vaisala) quét xong. Bổ sung thêm {diem_vaisala} điểm bị sót.")
+                print(f"✅ Luồng PHỤ (Vaisala) quét xong. Bổ sung {diem_moi_vaisala} điểm sót. (Đã chặn ghi đè {diem_bi_trung} điểm trùng lặp).")
                 break
             elif res_v.status_code == 429:
                 print("⚠️ Máy chủ Vaisala báo lỗi 429 (Bị chặn IP). Bỏ qua luồng phụ.")
@@ -194,7 +187,6 @@ def crawl_lightning_data():
             print(f"Lỗi kết nối Vaisala: {e}")
             time.sleep(3)
 
-    # Đánh giá tổng quan 2 luồng
     if not hymetnet_success and not vaisala_success:
         print("\n🚨 THẤT BẠI TRẦM TRỌNG: Cả 2 máy chủ nguồn đều sập hoặc từ chối kết nối!")
         sys.exit(1)
@@ -224,7 +216,8 @@ def crawl_lightning_data():
         print(f"\nĐang đồng bộ gói dữ liệu PATCH lên Firebase Web ({len(updates)} tác vụ)...")
         patch_response = requests.patch(FIREBASE_URL, json=updates, timeout=60)
         if patch_response.status_code == 200:
-            print(f"✅ HOÀN TẤT VẬN HÀNH! Đã gắp mới {diem_moi} điểm sét. Cập nhật cường độ cho {diem_cap_nhat} điểm. Đã dọn {diem_xoa} rác.")
+            tong_moi = diem_moi_hymetnet + diem_moi_vaisala
+            print(f"✅ HOÀN TẤT VẬN HÀNH! Đã lưu tổng cộng {tong_moi} điểm sét mới. Đã dọn {diem_xoa} rác.")
         else:
             print(f"❌ Lỗi Firebase: {patch_response.text}")
             sys.exit(1)
