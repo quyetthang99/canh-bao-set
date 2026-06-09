@@ -411,9 +411,11 @@
 
         function exportExcel() {
             if (!currentExportData || currentExportData.length === 0) { alert("Không có dữ liệu điểm sét nào trong vùng để xuất báo cáo!"); return; }
-            let csvContent = "\uFEFFSTT,Vĩ Độ,Kinh Độ,Thời Gian Ghi Nhận,Cường Độ,Loại Sét,Cột Gần Nhất,Khoảng Cách\n";
+            // Đã thêm chữ "Nguồn Sét" vào tiêu đề cột
+            let csvContent = "\uFEFFSTT,Vĩ Độ,Kinh Độ,Thời Gian Ghi Nhận,Cường Độ,Loại Sét,Nguồn Sét,Cột Gần Nhất,Khoảng Cách\n";
             currentExportData.forEach((row) => {
-                csvContent += `${row.stt},${row.lat},${row.lng},"${row.time}",${row.giatri},${row.loaiset},"${row.poleName}","${row.distSetToCot}"\n`;
+                // Đã thêm biến row.src vào file
+                csvContent += `${row.stt},${row.lat},${row.lng},"${row.time}",${row.giatri},${row.loaiset},"${row.src}","${row.poleName}","${row.distSetToCot}"\n`;
             });
             const link = document.createElement("a");
             link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })));
@@ -461,7 +463,10 @@
                 if (record.is_new_format) {
                     let typeText = record.loaiset === 0 ? "Xuống đất" : "Trong mây";
                     let giatriText = (record.giatri === 0 || record.giatri === 0.0) ? "Không có DL" : `${record.giatri} kA`;
-                    parsedStrikes.push({ lat: record.lat, lng: record.lng, giatri: giatriText, loaiset: typeText });
+                    let nguonSet = record.src ? record.src : "Không rõ"; // LẤY TÊN NGUỒN TỪ FIREBASE
+                    
+                    // Thêm trường src vào object
+                    parsedStrikes.push({ lat: record.lat, lng: record.lng, giatri: giatriText, loaiset: typeText, src: nguonSet });
                 }
 
                 for (let strike of parsedStrikes) {
@@ -471,7 +476,6 @@
                         if (strike.lat < b.minLat || strike.lat > b.maxLat || strike.lng < b.minLng || strike.lng > b.maxLng) continue;
                     }
 
-                    // KIỂM TRA SÉT CÓ NẰM TRONG ĐA GIÁC ĐÃ VẼ KHÔNG
                     const pt = turf.point([strike.lng, strike.lat]);
                     let isInside = true;
                     if (activePolygonGeoJSON) {
@@ -482,7 +486,6 @@
                     const dateObj = new Date(record.timestamp * 1000);
                     const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
 
-                    // TÍNH TOÁN CỘT GẦN NHẤT
                     let nearestPoleName = "Chưa bật lưới điện";
                     let distSetToCot = "N/A";
                     if (activePoleFeatures.length > 0) {
@@ -493,9 +496,10 @@
                         distSetToCot = `${dS2C.toFixed(1)} m`;
                     }
 
+                    // Lưu src vào mảng báo cáo
                     insidePolygonData.push({
                         stt: count + 1, lat: strike.lat.toFixed(4), lng: strike.lng.toFixed(4),
-                        giatri: strike.giatri, loaiset: strike.loaiset, time: timeString, 
+                        giatri: strike.giatri, loaiset: strike.loaiset, time: timeString, src: strike.src, 
                         poleName: nearestPoleName, distSetToCot: distSetToCot
                     });
 
@@ -504,6 +508,7 @@
                     else { cgCount++; }
                     let colorCode = strike.loaiset.includes("đất") ? "red" : "#ff8c00";
 
+                    // HIỂN THỊ NGUỒN TRÊN POPUP (KHI CLICK VÀO SÉT)
                     const popupHTML = `
                         <div style="font-family: Arial; font-size: 13px; width: 230px; line-height: 1.5;">
                             <b style="color:${colorCode}; font-size:14px;">⚡ THÔNG TIN SÉT</b><hr style="margin:5px 0;">
@@ -511,6 +516,7 @@
                             <b>Thời gian:</b> <span style="color:blue; font-weight:bold;">${timeString}</span><br>
                             <b>Cường độ:</b> <span style="color:#d32f2f; font-weight:bold;">${strike.giatri}</span><br>
                             <b>Loại sét:</b> ${strike.loaiset}<br>
+                            <b>Nguồn DL:</b> <span style="color:#28a745; font-weight:bold;">${strike.src}</span><br>
                             <span style="color:#e65100;"><b>Cột gần nhất:</b> ${nearestPoleName} (${distSetToCot})</span>
                         </div>
                     `;
@@ -525,16 +531,18 @@
             document.getElementById('ic-count').innerText = icCount;
             currentExportData = insidePolygonData;
 
-            // TẠO BẢNG BÁO CÁO KHI VẼ ĐA GIÁC
+            // HIỂN THỊ NGUỒN TRÊN BẢNG BÁO CÁO (KHI VẼ ĐA GIÁC)
             if (activePolygonLayer) {
                 let tableRowsHtml = "";
                 insidePolygonData.forEach((item) => {
                     let intensityColor = (item.giatri === "Không có DL") ? "#777" : "#d32f2f";
+                    let srcColor = item.src.includes("Hymetnet") ? "green" : "#ff8c00"; // Đổi màu để dễ nhận biết nguồn
+                    
                     tableRowsHtml += `<tr style="border-bottom: 1px solid #e0e0e0;">
                         <td style="padding: 6px; text-align: center;">${item.stt}</td>
                         <td style="padding: 6px; text-align: center; font-size: 11px;">${item.lat},<br>${item.lng}</td>
                         <td style="padding: 6px; text-align: center; font-weight:bold; color:${intensityColor};">${item.giatri}</td>
-                        <td style="padding: 6px; text-align: center; color: ${item.loaiset.includes('Không') ? '#777' : '#0056b3'};">${item.loaiset}</td>
+                        <td style="padding: 6px; text-align: center; font-weight:bold; color: ${srcColor};">${item.src}</td> 
                         <td style="padding: 6px; text-align: center; color: #555; white-space: nowrap;">${item.time}</td>
                         <td style="padding: 6px; font-weight: bold; color: #0056b3; text-align: center; max-width: 150px; white-space: normal; word-wrap: break-word; line-height: 1.4;">${item.poleName}</td>
                         <td style="padding: 6px; color: #d32f2f; font-weight: bold; text-align: center; white-space: nowrap;">${item.distSetToCot}</td>
@@ -543,7 +551,7 @@
                 if (insidePolygonData.length === 0) tableRowsHtml = `<tr><td colspan="7" style="text-align:center; padding:15px; color:#777;">Không tìm thấy điểm sét nào.</td></tr>`;
 
                 const reportContent = `
-                    <div style="font-family: Arial; font-size: 12px; width: 700px;"> 
+                    <div style="font-family: Arial; font-size: 12px; width: 750px;"> 
                         <h4 style="margin: 0 0 6px 0; color: #d9534f; text-align: center; border-bottom: 2px solid #d9534f; padding-bottom: 4px;">KẾT QUẢ KHOANH VÙNG</h4>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <p style="margin: 0;">Tổng số sét trong vùng: <b style="font-size:14px; color:red;">${insidePolygonData.length}</b></p>
@@ -552,13 +560,21 @@
                         <div style="max-height: 220px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px;">
                             <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
                                 <thead style="background: #f5f5f5; position: sticky; top: 0; box-shadow: 0 1px 0 #ccc; z-index: 10;">
-                                    <tr><th style="padding: 6px; border-bottom: 1px solid #ccc;">STT</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Vị trí (Tọa độ)</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Cường độ</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Loại sét</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Thời gian</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Cột gần nhất</th><th style="padding: 6px; border-bottom: 1px solid #ccc;">Sét → Cột</th></tr>
+                                    <tr>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">STT</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Vị trí (Tọa độ)</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Cường độ</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Nguồn DL</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Thời gian</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Cột gần nhất</th>
+                                        <th style="padding: 6px; border-bottom: 1px solid #ccc;">Sét → Cột</th>
+                                    </tr>
                                 </thead>
                                 <tbody>${tableRowsHtml}</tbody>
                             </table>
                         </div>
                     </div>`;
-                activePolygonLayer.bindPopup(reportContent, { maxWidth: 750 }).openPopup();
+                activePolygonLayer.bindPopup(reportContent, { maxWidth: 800 }).openPopup();
             }
         }
 
