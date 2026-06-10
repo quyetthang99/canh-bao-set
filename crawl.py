@@ -11,7 +11,7 @@ def crawl_lightning_data():
     
     # 1. TẠO KHUNG THỜI GIAN LÙI 45 PHÚT
     now_utc = datetime.now(timezone.utc)
-    past_utc = now_utc - timedelta(minutes=45)
+    past_utc = now_utc - timedelta(minutes=90)
     
     end_time = now_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
     start_time = past_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
@@ -145,7 +145,7 @@ def crawl_lightning_data():
                     giay = int(giay_m.group(1)) if giay_m else 0
                     
                     ts = datetime(nam, thang, ngay, gio, phut, giay, tzinfo=timezone.utc).timestamp()
-                    if current_ts - ts <= 2700: 
+                    if current_ts - ts <= 5400: 
                         diem_quet_h += 1
                         process_strike(lat, lng, giatri, loaiset, ts, "Hymetnet")
                 except: continue
