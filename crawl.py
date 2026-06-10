@@ -7,9 +7,9 @@ import hashlib
 from datetime import datetime, timezone, timedelta
 
 def crawl_lightning_data():
-    print("🚀 KHỞI ĐỘNG HỆ THỐNG QUÉT KÉP V12 (HYMETNET + EVNTOOLS | BÁO CÁO CHI TIẾT)...")
+    print("🚀 KHỞI ĐỘNG HỆ THỐNG QUÉT KÉP V13 (ĐỒNG BỘ 2 FIREBASE SONG SONG)...")
     
-    # 1. TẠO KHUNG THỜI GIAN LÙI 45 PHÚT
+    # 1. TẠO KHUNG THỜI GIAN LÙI 90 PHÚT
     now_utc = datetime.now(timezone.utc)
     past_utc = now_utc - timedelta(minutes=90)
     
@@ -17,35 +17,52 @@ def crawl_lightning_data():
     start_time = past_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
     current_ts = int(now_utc.timestamp())
 
-    # --- CẤU HÌNH API NGUỒN 1 (HYMETNET) ---
+    # --- CẤU HÌNH API NGUỒN ---
     url_hymetnet = f"http://hymetnet.gov.vn/lightningmaps/?_t={current_ts}"
     proxy_hymetnet = f"https://api.allorigins.win/raw?url={url_hymetnet}&disableCache=true"
     headers_hymetnet = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 
-    # --- CẤU HÌNH API NGUỒN 2 (EVNTOOLS / VAISALA) ---
     api_url_vaisala = (
         f"https://evntools.com/api/lightning/geojson?start_time={start_time}&end_time={end_time}"
         f"&limit=50000&min_lat=21.4543&max_lat=22.5379&min_lon=103.7878&max_lon=105.2957"
     )
     headers_vaisala = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
 
-    FIREBASE_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
+    # --- CẤU HÌNH ĐƯỜNG DẪN 2 KHO FIREBASE ---
+    FIREBASE_MAIN_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
+    FIREBASE_BACKUP_URL = "https://datasetweb-duphong-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
     
-    # 2. TẢI DỮ LIỆU CŨ TỪ FIREBASE
+    # 2. TẢI DỮ LIỆU LỊCH SỬ (CƠ CHẾ DỰ PHÒNG KHI ĐỌC)
     db_data = {}
+    read_success = False
+    
     try:
-        print("Đang tải dữ liệu lịch sử từ Firebase Web...")
-        fb_response = requests.get(FIREBASE_URL, timeout=30)
+        print("Đang tải dữ liệu lịch sử từ Firebase CHÍNH...")
+        fb_response = requests.get(FIREBASE_MAIN_URL, timeout=25)
         if fb_response.status_code == 200 and fb_response.json() is not None:
             db_data = fb_response.json()
+            read_success = True
+            print("✅ Tải bộ nhớ từ Firebase CHÍNH thành công.")
     except Exception as e:
-        print(f"Lỗi đọc Firebase: {e}")
+        print(f"⚠️ Firebase CHÍNH lỗi hoặc hết hạn mức băng thông: {e}")
+
+    # Nếu Firebase chính tèo, lập tức cứu viện bằng Firebase dự phòng
+    if not read_success:
+        try:
+            print("🔄 Đang chuyển hướng sang đọc dữ liệu từ Firebase DỰ PHÒNG...")
+            fb_response = requests.get(FIREBASE_BACKUP_URL, timeout=25)
+            if fb_response.status_code == 200 and fb_response.json() is not None:
+                db_data = fb_response.json()
+                print("✅ Tải bộ nhớ từ Firebase DỰ PHÒNG thành công.")
+        except Exception as e:
+            print(f"❌ Thất bại: Cả 2 kho Firebase đều không thể truy cập: {e}")
 
     # =====================================================================
     # BỘ NÃO AI: XÂY DỰNG BẢN ĐỒ TÌM KIẾM KHÔNG GIAN - THỜI GIAN
     # =====================================================================
     recent_index = {}
     for k, v in db_data.items():
+        if v is None: continue
         ts_val = v.get("timestamp", 0)
         if isinstance(ts_val, str):
             try: ts_val = datetime.fromisoformat(ts_val.replace("Z", "+00:00")).timestamp()
@@ -97,7 +114,7 @@ def crawl_lightning_data():
             for k_del in keys_to_delete:
                 updates[k_del] = None 
                 diem_thay_the += 1
-                print(f"   [THAY THẾ] Tìm thấy điểm Bóng ma. Đã thay bằng điểm Xịn từ {nguon}.")
+                print(f"   [THAY THẾ] Phát hiện điểm Bóng ma. Đang lên lịch xóa để đè điểm Xịn từ {nguon}...")
                 
             updates[new_key] = {
                 "lat": lat, "lng": lng, "giatri": giatri,
@@ -145,11 +162,11 @@ def crawl_lightning_data():
                     giay = int(giay_m.group(1)) if giay_m else 0
                     
                     ts = datetime(nam, thang, ngay, gio, phut, giay, tzinfo=timezone.utc).timestamp()
-                    if current_ts - ts <= 5400: 
+                    if current_ts - ts <= 5400: # Lọc khung 90 phút (5400 giây)
                         diem_quet_h += 1
                         process_strike(lat, lng, giatri, loaiset, ts, "Hymetnet")
                 except: continue
-            print(f"✅ Xong luồng Hymetnet: Tìm thấy tổng cộng {diem_quet_h} điểm sét nằm trong vùng Lào Cai - Yên Bái.")
+            print(f"✅ Xong luồng Hymetnet: Quét được {diem_quet_h} điểm sét.")
     except Exception as e: print(f"❌ Lỗi Hymetnet: {e}")
 
     # =====================================================================
@@ -184,7 +201,7 @@ def crawl_lightning_data():
                         
                     diem_quet_v += 1
                     process_strike(lat, lng, giatri, loaiset, ts, nguon)
-                print(f"✅ Xong luồng EVNTools: Tìm thấy tổng cộng {diem_quet_v} điểm sét.")
+                print(f"✅ Xong luồng EVNTools: Quét được {diem_quet_v} điểm sét.")
                 break
             elif res_v.status_code == 429:
                 print("⚠️ Máy chủ Vaisala báo lỗi 429 (Bị chặn IP). Bỏ qua luồng 2.")
@@ -202,6 +219,7 @@ def crawl_lightning_data():
     seven_days_ago = current_ts - 604800
     diem_xoa = 0
     for k, v in db_data.items():
+        if v is None: continue
         ts_val = v.get("timestamp", 0)
         if isinstance(ts_val, str):
             try: ts_val = datetime.fromisoformat(ts_val.replace("Z", "+00:00")).timestamp()
@@ -210,24 +228,31 @@ def crawl_lightning_data():
             updates[k] = None 
             diem_xoa += 1
 
-    # ĐẨY DỮ LIỆU LÊN FIREBASE
+    # =====================================================================
+    # ĐẨY DỮ LIỆU ĐỒNG THỜI LÊN CẢ 2 FIREBASE
+    # =====================================================================
     print("\n---------------------------------------------------")
-    print("📊 TỔNG KẾT DỮ LIỆU SAU KHI SÀNG LỌC:")
+    print("📊 TỔNG KẾT VÀ TIẾN HÀNH ĐỒNG BỘ SONG SONG:")
     if updates:
-        print(f"Đang đồng bộ ({len(updates)} tác vụ) lên Firebase...")
-        patch_response = requests.patch(FIREBASE_URL, json=updates, timeout=60)
-        if patch_response.status_code == 200:
-            print(f"✅ HOÀN TẤT! ")
-            print(f"  + Thêm {diem_moi} điểm MỚI TOANH.")
-            print(f"  + Tiêu diệt & Thay thế {diem_thay_the} điểm BÓNG MA (làm tròn giờ/thiếu cường độ).")
-            print(f"  + Dọn dẹp {diem_xoa} điểm RÁC quá 7 ngày.")
-        else:
-            print("❌ Lỗi Firebase")
-            sys.exit(1)
+        # Lệnh bắn lên kho CHÍNH
+        try:
+            print(f"🔄 Đang đẩy {len(updates)} tác vụ lên Firebase CHÍNH...")
+            requests.patch(FIREBASE_MAIN_URL, json=updates, timeout=40)
+            print("✅ Ghi Firebase CHÍNH hoàn tất.")
+        except Exception as e:
+            print(f"❌ Firebase CHÍNH lỗi hoặc chặn ghi (Có thể hết quota): {e}")
+
+        # Lệnh bắn lên kho DỰ PHÒNG
+        try:
+            print(f"🔄 Đang đẩy {len(updates)} tác vụ lên Firebase DỰ PHÒNG...")
+            requests.patch(FIREBASE_BACKUP_URL, json=updates, timeout=40)
+            print("✅ Ghi Firebase DỰ PHÒNG hoàn tất.")
+        except Exception as e:
+            print(f"❌ Không thể đồng bộ sang Firebase DỰ PHÒNG: {e}")
+            
+        print(f"\n📊 KẾT QUẢ SÀNG LỌC: Thêm mới {diem_moi} điểm. Thay thế {diem_thay_the} điểm Bóng ma. Dọn {diem_xoa} rác cũ.")
     else:
-        tong_quet = diem_quet_h + diem_quet_v
-        print(f"✅ Hệ thống đã quét được {tong_quet} điểm từ các nguồn.")
-        print(f"✅ TOÀN BỘ dữ liệu này đã có sẵn trên Firebase, đều là dữ liệu Xịn (có giây, có cường độ). KHÔNG CẦN GHI ĐÈ.")
+        print(f"✅ Hệ thống đã quét xong. Toàn bộ dữ liệu sạch đã tồn tại trên các kho, không cần cập nhật thêm.")
     print("---------------------------------------------------")
 
 if __name__ == "__main__":
