@@ -7,26 +7,35 @@ import hashlib
 from datetime import datetime, timezone, timedelta
 
 def crawl_lightning_data():
-    print("🚀 KHỞI ĐỘNG HỆ THỐNG QUÉT KÉP V9 (THAY THẾ SÉT LÀM TRÒN BẰNG SÉT CHUẨN)...")
+    print("🚀 KHỞI ĐỘNG HỆ THỐNG QUÉT KÉP V10 (NGUỒN 1: HYMETNET | NGUỒN 2: EVN NLDC A0)...")
     
-    # 1. TẠO KHUNG THỜI GIAN LÙI 45 PHÚT ĐỂ VÉT SẠCH CẢ DỮ LIỆU ĐÃ LÀM NÉT
-    now = datetime.now(timezone.utc)
-    past = now - timedelta(minutes=45)
-    
-    end_time = now.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    start_time = past.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    current_ts = int(time.time())
+    # 1. TẠO KHUNG THỜI GIAN
+    now_utc = datetime.now(timezone.utc)
+    past_utc = now_utc - timedelta(minutes=45)
+    current_ts = int(now_utc.timestamp())
 
-    # --- CẤU HÌNH API ---
+    # --- CẤU HÌNH API NGUỒN 1 (HYMETNET) ---
     url_hymetnet = f"http://hymetnet.gov.vn/lightningmaps/?_t={current_ts}"
     proxy_hymetnet = f"https://api.allorigins.win/raw?url={url_hymetnet}&disableCache=true"
     headers_hymetnet = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 
-    api_url_vaisala = (
-        f"https://evntools.com/api/lightning/geojson?start_time={start_time}&end_time={end_time}"
-        f"&limit=50000&min_lat=21.4543&max_lat=22.5379&min_lon=103.7878&max_lon=105.2957"
+    # --- CẤU HÌNH API NGUỒN 2 (EVN NLDC A0) ---
+    # Chuyển đổi sang giờ Việt Nam để gọi API NLDC
+    now_vn = now_utc + timedelta(hours=7)
+    past_vn = past_utc + timedelta(hours=7)
+    
+    st_nldc = past_vn.strftime("%m/%d/%Y %H:%M:%S").replace(" ", "%20")
+    et_nldc = now_vn.strftime("%m/%d/%Y %H:%M:%S").replace(" ", "%20")
+    
+    # Polygon khoanh vùng khu vực Tây Bắc theo đúng API bác bắt được
+    poly_nldc = "POLYGON((102.15968874336798%2019.872389109859633,106.99367311837037%2019.872389109859633,106.99367311837037%2022.950557561116803,102.15968874336798%2022.950557561116803,102.15968874336798%2019.872389109859633))"
+    
+    api_url_nldc = (
+        f"https://weather.nldc.evn.vn/a0services/rest/gsv_data/dulieuset?"
+        f"starttime={st_nldc}&endtime={et_nldc}&fields=thoigian,x,y,cuongdo,distance"
+        f"&polygon={poly_nldc}&_dc={int(time.time()*1000)}&start=0&limit=5000&page=1"
     )
-    headers_vaisala = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+    headers_nldc = {"User-Agent": "Mozilla/5.0"}
 
     FIREBASE_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
     
@@ -50,7 +59,6 @@ def crawl_lightning_data():
             try: ts_val = datetime.fromisoformat(ts_val.replace("Z", "+00:00")).timestamp()
             except: ts_val = 0
             
-        # Chỉ quét các mốc trong 2 tiếng gần nhất để đối chiếu
         if current_ts - float(ts_val) <= 7200:
             lat_r = round(float(v.get("lat", 0)), 4)
             lng_r = round(float(v.get("lng", 0)), 4)
@@ -62,7 +70,7 @@ def crawl_lightning_data():
 
     updates = {}
     diem_moi = 0
-    diem_thay_the = 0 # Điểm dỏm bị xóa và thay bằng điểm xịn
+    diem_thay_the = 0
 
     # HÀM XỬ LÝ LÕI: QUYẾT ĐỊNH XÓA, THÊM HAY BỎ QUA
     def process_strike(lat, lng, giatri, loaiset, ts, nguon):
@@ -79,41 +87,32 @@ def crawl_lightning_data():
 
         if loc_key in recent_index:
             for old_pt in recent_index[loc_key]:
-                # Nếu cùng vị trí và cách nhau dưới 35 phút -> Chắc chắn là cùng 1 tia sét
                 if abs(ts_int - old_pt['ts']) <= 2100: 
                     old_g = old_pt['g']
-                    old_ts_is_rounded = (old_pt['ts'] % 60 == 0) # Kiểm tra xem giờ cũ có bị làm tròn chẵn phút không
-                    new_ts_is_exact = (ts_int % 60 != 0) # Giờ mới có giây lẻ không
+                    old_ts_is_rounded = (old_pt['ts'] % 60 == 0) 
+                    new_ts_is_exact = (ts_int % 60 != 0) 
                     
-                    # QUY LUẬT 1: Cũ không có cường độ (0) mà mới CÓ cường độ -> THAY THẾ!
-                    if (old_g == 0 or old_g == 0.0) and giatri > 0:
+                    if (old_g == 0 or old_g == 0.0) and giatri != 0:
                         keys_to_delete.append(old_pt['key'])
-                        continue # Đánh dấu xóa cũ, tiếp tục để thêm mới
-                        
-                    # QUY LUẬT 2: Cũ bị làm tròn thời gian, mới có giây chính xác -> THAY THẾ!
+                        continue 
                     elif old_ts_is_rounded and new_ts_is_exact:
                         keys_to_delete.append(old_pt['key'])
                         continue 
-                        
-                    # QUY LUẬT 3: Nếu điểm cũ đã xịn rồi (Có cường độ, có thời gian lẻ) -> BỎ QUA MỚI!
                     else:
                         is_duplicate = True
                         break 
 
         if not is_duplicate or keys_to_delete:
-            # Gửi lệnh xóa các điểm "Bóng ma" lên Firebase
             for k_del in keys_to_delete:
                 updates[k_del] = None 
                 diem_thay_the += 1
                 
-            # Ghi nhận điểm Xịn
             updates[new_key] = {
                 "lat": lat, "lng": lng, "giatri": giatri,
                 "loaiset": loaiset, "timestamp": ts_int,
                 "src": nguon, "is_new_format": True
             }
             
-            # Cập nhật lại vào bộ nhớ tạm để các tia sét tiếp theo không dẫm lên
             if loc_key not in recent_index:
                 recent_index[loc_key] = []
             recent_index[loc_key].append({'key': new_key, 'ts': ts_int, 'g': giatri})
@@ -155,35 +154,47 @@ def crawl_lightning_data():
                     if current_ts - ts <= 2700: 
                         process_strike(lat, lng, giatri, loaiset, ts, "Hymetnet")
                 except: continue
+            print("✅ Xong luồng Hymetnet.")
     except Exception as e: print(f"Lỗi Hymetnet: {e}")
 
     # =====================================================================
-    # LUỒNG 2: VAISALA
+    # LUỒNG 2: EVN NLDC (A0)
     # =====================================================================
-    print("[LUỒNG 2] Quét Vaisala...")
+    print("\n[LUỒNG 2] Quét EVN NLDC (A0)...")
     for _ in range(2):
         try:
-            res_v = requests.get(api_url_vaisala, headers=headers_vaisala, timeout=20)
-            if res_v.status_code == 200:
-                features = res_v.json().get("features", [])
-                for f in features:
-                    p = f.get("properties", {})
-                    g = f.get("geometry", {})
-                    if not g or not p: continue
-                    coords = g.get("coordinates", [])
-                    if len(coords) < 2: continue
-                    lng, lat = coords[0], coords[1]
-                    giatri = abs(float(p.get("amplitude", 0)))
-                    ts_str = p.get("timestamp", p.get("time"))
+            res_n = requests.get(api_url_nldc, headers=headers_nldc, timeout=20)
+            if res_n.status_code == 200:
+                features = res_n.json().get("searchResult", [])
+                for item in features:
                     try:
-                        dt = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                        ts = dt.timestamp()
-                    except:
-                        try: ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp()
-                        except: continue
-                    process_strike(lat, lng, giatri, p.get("type", 0), ts, p.get("source", "Vaisala").title())
+                        lat = float(item.get("y", 0))
+                        lng = float(item.get("x", 0))
+                        if not (21.40 <= lat <= 22.60 and 103.70 <= lng <= 105.30): continue
+                        
+                        giatri = float(item.get("cuongdo", 0))
+                        time_str = item.get("thoigian", "") # VD: "6/9/2026 8:11:27 PM"
+                        
+                        # Chuyển đổi định dạng giờ của NLDC (Giờ VN) sang Giờ Quốc Tế (UTC)
+                        try:
+                            dt_vn = datetime.strptime(time_str, "%m/%d/%Y %I:%M:%S %p")
+                        except ValueError:
+                            # Dự phòng nếu API trả về 24h format
+                            dt_vn = datetime.strptime(time_str, "%m/%d/%Y %H:%M:%S")
+                            
+                        dt_utc = dt_vn.replace(tzinfo=timezone(timedelta(hours=7))).astimezone(timezone.utc)
+                        ts = dt_utc.timestamp()
+                        
+                        # Dữ liệu của A0 chủ yếu là sét đánh đất (0)
+                        loaiset = 0 
+                        
+                        process_strike(lat, lng, giatri, loaiset, ts, "EVN NLDC")
+                    except: continue
+                print(f"✅ Xong luồng EVN NLDC.")
                 break
-        except: time.sleep(3)
+        except Exception as e: 
+            print(f"Lỗi kết nối NLDC: {e}")
+            time.sleep(3)
 
     # =====================================================================
     # DỌN DẸP RÁC 7 NGÀY
@@ -204,7 +215,7 @@ def crawl_lightning_data():
         print(f"\nĐang đồng bộ ({len(updates)} tác vụ PATCH)...")
         patch_response = requests.patch(FIREBASE_URL, json=updates, timeout=60)
         if patch_response.status_code == 200:
-            print(f"✅ HOÀN TẤT! Nạp {diem_moi} điểm mới. XÓA {diem_thay_the} điểm 'Bóng ma' để đè điểm Xịn lên. Dọn {diem_xoa} rác 7 ngày.")
+            print(f"✅ HOÀN TẤT! Nạp {diem_moi} điểm mới. XÓA & THAY THẾ {diem_thay_the} điểm 'Bóng ma'. Dọn {diem_xoa} rác 7 ngày.")
         else:
             print("❌ Lỗi Firebase")
             sys.exit(1)
