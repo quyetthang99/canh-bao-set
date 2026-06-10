@@ -7,11 +7,14 @@ import hashlib
 from datetime import datetime, timezone, timedelta
 
 def crawl_lightning_data():
-    print("🚀 KHỞI ĐỘNG HỆ THỐNG QUÉT KÉP V10 (NGUỒN 1: HYMETNET | NGUỒN 2: EVN NLDC A0)...")
+    print("🚀 KHỞI ĐỘNG HỆ THỐNG QUÉT KÉP V12 (HYMETNET + EVNTOOLS | BÁO CÁO CHI TIẾT)...")
     
-    # 1. TẠO KHUNG THỜI GIAN
+    # 1. TẠO KHUNG THỜI GIAN LÙI 45 PHÚT
     now_utc = datetime.now(timezone.utc)
     past_utc = now_utc - timedelta(minutes=45)
+    
+    end_time = now_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    start_time = past_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
     current_ts = int(now_utc.timestamp())
 
     # --- CẤU HÌNH API NGUỒN 1 (HYMETNET) ---
@@ -19,23 +22,12 @@ def crawl_lightning_data():
     proxy_hymetnet = f"https://api.allorigins.win/raw?url={url_hymetnet}&disableCache=true"
     headers_hymetnet = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 
-    # --- CẤU HÌNH API NGUỒN 2 (EVN NLDC A0) ---
-    # Chuyển đổi sang giờ Việt Nam để gọi API NLDC
-    now_vn = now_utc + timedelta(hours=7)
-    past_vn = past_utc + timedelta(hours=7)
-    
-    st_nldc = past_vn.strftime("%m/%d/%Y %H:%M:%S").replace(" ", "%20")
-    et_nldc = now_vn.strftime("%m/%d/%Y %H:%M:%S").replace(" ", "%20")
-    
-    # Polygon khoanh vùng khu vực Tây Bắc theo đúng API bác bắt được
-    poly_nldc = "POLYGON((102.15968874336798%2019.872389109859633,106.99367311837037%2019.872389109859633,106.99367311837037%2022.950557561116803,102.15968874336798%2022.950557561116803,102.15968874336798%2019.872389109859633))"
-    
-    api_url_nldc = (
-        f"https://weather.nldc.evn.vn/a0services/rest/gsv_data/dulieuset?"
-        f"starttime={st_nldc}&endtime={et_nldc}&fields=thoigian,x,y,cuongdo,distance"
-        f"&polygon={poly_nldc}&_dc={int(time.time()*1000)}&start=0&limit=5000&page=1"
+    # --- CẤU HÌNH API NGUỒN 2 (EVNTOOLS / VAISALA) ---
+    api_url_vaisala = (
+        f"https://evntools.com/api/lightning/geojson?start_time={start_time}&end_time={end_time}"
+        f"&limit=50000&min_lat=21.4543&max_lat=22.5379&min_lon=103.7878&max_lon=105.2957"
     )
-    headers_nldc = {"User-Agent": "Mozilla/5.0"}
+    headers_vaisala = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
 
     FIREBASE_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
     
@@ -72,7 +64,6 @@ def crawl_lightning_data():
     diem_moi = 0
     diem_thay_the = 0
 
-    # HÀM XỬ LÝ LÕI: QUYẾT ĐỊNH XÓA, THÊM HAY BỎ QUA
     def process_strike(lat, lng, giatri, loaiset, ts, nguon):
         nonlocal diem_moi, diem_thay_the
         
@@ -106,6 +97,7 @@ def crawl_lightning_data():
             for k_del in keys_to_delete:
                 updates[k_del] = None 
                 diem_thay_the += 1
+                print(f"   [THAY THẾ] Tìm thấy điểm Bóng ma. Đã thay bằng điểm Xịn từ {nguon}.")
                 
             updates[new_key] = {
                 "lat": lat, "lng": lng, "giatri": giatri,
@@ -119,11 +111,13 @@ def crawl_lightning_data():
             
             if not keys_to_delete:
                 diem_moi += 1
+                print(f"   [THÊM MỚI] Ghi nhận 1 tia sét mới từ {nguon}.")
 
     # =====================================================================
     # LUỒNG 1: HYMETNET
     # =====================================================================
-    print("\n[LUỒNG 1] Quét Hymetnet...")
+    print("\n[LUỒNG 1] Đang quét dữ liệu Hymetnet...")
+    diem_quet_h = 0
     try:
         res_h = requests.get(url_hymetnet, headers=headers_hymetnet, timeout=15)
         if res_h.status_code != 200: res_h = requests.get(proxy_hymetnet, headers=headers_hymetnet, timeout=30)
@@ -152,48 +146,54 @@ def crawl_lightning_data():
                     
                     ts = datetime(nam, thang, ngay, gio, phut, giay, tzinfo=timezone.utc).timestamp()
                     if current_ts - ts <= 2700: 
+                        diem_quet_h += 1
                         process_strike(lat, lng, giatri, loaiset, ts, "Hymetnet")
                 except: continue
-            print("✅ Xong luồng Hymetnet.")
-    except Exception as e: print(f"Lỗi Hymetnet: {e}")
+            print(f"✅ Xong luồng Hymetnet: Tìm thấy tổng cộng {diem_quet_h} điểm sét nằm trong vùng Lào Cai - Yên Bái.")
+    except Exception as e: print(f"❌ Lỗi Hymetnet: {e}")
 
     # =====================================================================
-    # LUỒNG 2: EVN NLDC (A0)
+    # LUỒNG 2: EVNTOOLS (VAISALA)
     # =====================================================================
-    print("\n[LUỒNG 2] Quét EVN NLDC (A0)...")
-    for _ in range(2):
+    print("\n[LUỒNG 2] Đang quét EVNTools (Vaisala)...")
+    diem_quet_v = 0
+    for attempt in range(2):
         try:
-            res_n = requests.get(api_url_nldc, headers=headers_nldc, timeout=20)
-            if res_n.status_code == 200:
-                features = res_n.json().get("searchResult", [])
-                for item in features:
+            res_v = requests.get(api_url_vaisala, headers=headers_vaisala, timeout=20)
+            if res_v.status_code == 200:
+                features = res_v.json().get("features", [])
+                for f in features:
+                    p = f.get("properties", {})
+                    g = f.get("geometry", {})
+                    if not g or not p: continue
+                    coords = g.get("coordinates", [])
+                    if len(coords) < 2: continue
+                    lng, lat = coords[0], coords[1]
+                    
+                    giatri = abs(float(p.get("amplitude", 0)))
+                    ts_str = p.get("timestamp", p.get("time"))
+                    loaiset = p.get("type", 0)
+                    nguon = p.get("source", "Vaisala").title()
+                    
                     try:
-                        lat = float(item.get("y", 0))
-                        lng = float(item.get("x", 0))
-                        if not (21.40 <= lat <= 22.60 and 103.70 <= lng <= 105.30): continue
+                        dt = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                        ts = dt.timestamp()
+                    except:
+                        try: ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp()
+                        except: continue
                         
-                        giatri = float(item.get("cuongdo", 0))
-                        time_str = item.get("thoigian", "") # VD: "6/9/2026 8:11:27 PM"
-                        
-                        # Chuyển đổi định dạng giờ của NLDC (Giờ VN) sang Giờ Quốc Tế (UTC)
-                        try:
-                            dt_vn = datetime.strptime(time_str, "%m/%d/%Y %I:%M:%S %p")
-                        except ValueError:
-                            # Dự phòng nếu API trả về 24h format
-                            dt_vn = datetime.strptime(time_str, "%m/%d/%Y %H:%M:%S")
-                            
-                        dt_utc = dt_vn.replace(tzinfo=timezone(timedelta(hours=7))).astimezone(timezone.utc)
-                        ts = dt_utc.timestamp()
-                        
-                        # Dữ liệu của A0 chủ yếu là sét đánh đất (0)
-                        loaiset = 0 
-                        
-                        process_strike(lat, lng, giatri, loaiset, ts, "EVN NLDC")
-                    except: continue
-                print(f"✅ Xong luồng EVN NLDC.")
+                    diem_quet_v += 1
+                    process_strike(lat, lng, giatri, loaiset, ts, nguon)
+                print(f"✅ Xong luồng EVNTools: Tìm thấy tổng cộng {diem_quet_v} điểm sét.")
+                break
+            elif res_v.status_code == 429:
+                print("⚠️ Máy chủ Vaisala báo lỗi 429 (Bị chặn IP). Bỏ qua luồng 2.")
+                break
+            else:
+                print(f"❌ Luồng EVNTools lỗi HTTP {res_v.status_code}")
                 break
         except Exception as e: 
-            print(f"Lỗi kết nối NLDC: {e}")
+            print(f"⚠️ Lỗi kết nối EVNTools: {e}")
             time.sleep(3)
 
     # =====================================================================
@@ -210,17 +210,25 @@ def crawl_lightning_data():
             updates[k] = None 
             diem_xoa += 1
 
-    # ĐẨY DỮ LIỆU
+    # ĐẨY DỮ LIỆU LÊN FIREBASE
+    print("\n---------------------------------------------------")
+    print("📊 TỔNG KẾT DỮ LIỆU SAU KHI SÀNG LỌC:")
     if updates:
-        print(f"\nĐang đồng bộ ({len(updates)} tác vụ PATCH)...")
+        print(f"Đang đồng bộ ({len(updates)} tác vụ) lên Firebase...")
         patch_response = requests.patch(FIREBASE_URL, json=updates, timeout=60)
         if patch_response.status_code == 200:
-            print(f"✅ HOÀN TẤT! Nạp {diem_moi} điểm mới. XÓA & THAY THẾ {diem_thay_the} điểm 'Bóng ma'. Dọn {diem_xoa} rác 7 ngày.")
+            print(f"✅ HOÀN TẤT! ")
+            print(f"  + Thêm {diem_moi} điểm MỚI TOANH.")
+            print(f"  + Tiêu diệt & Thay thế {diem_thay_the} điểm BÓNG MA (làm tròn giờ/thiếu cường độ).")
+            print(f"  + Dọn dẹp {diem_xoa} điểm RÁC quá 7 ngày.")
         else:
             print("❌ Lỗi Firebase")
             sys.exit(1)
     else:
-        print("\n✅ Không có biến động dữ liệu.")
+        tong_quet = diem_quet_h + diem_quet_v
+        print(f"✅ Hệ thống đã quét được {tong_quet} điểm từ các nguồn.")
+        print(f"✅ TOÀN BỘ dữ liệu này đã có sẵn trên Firebase, đều là dữ liệu Xịn (có giây, có cường độ). KHÔNG CẦN GHI ĐÈ.")
+    print("---------------------------------------------------")
 
 if __name__ == "__main__":
     crawl_lightning_data()
