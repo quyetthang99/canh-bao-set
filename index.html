@@ -394,41 +394,46 @@
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
             
-            // Khai báo 2 đường link độc lập
             const mainFirebase = 'https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
             const backupFirebase = 'https://datasetweb-duphong-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
             
             try {
-                // Bước 1: Thử kết nối lấy dữ liệu từ kho CHÍNH
                 const response = await fetch(mainFirebase);
                 if (!response.ok) throw new Error("Kho chính hết hạn mức");
                 
-                const lightningDatabase = await response.json();
-                if (lightningDatabase) {
-                    lightningArray = Object.values(lightningDatabase).sort((a, b) => b.timestamp - a.timestamp);
+                const db = await response.json();
+                if (db) {
+                    // GỘP 2 THƯ MỤC TEMP VÀ FULL LẠI THÀNH 1 MẢNG ĐỂ HIỂN THỊ
+                    let combinedArray = [];
+                    if (db.temp) combinedArray = combinedArray.concat(Object.values(db.temp));
+                    if (db.full) combinedArray = combinedArray.concat(Object.values(db.full));
+                    
+                    lightningArray = combinedArray.sort((a, b) => b.timestamp - a.timestamp);
                     filterLightning(true);
                 }
                 statusLabel.innerText = "Hoạt động tốt (Bản đồ Chính)";
                 statusLabel.style.color = "green";
                 
             } catch (error) {
-                // Bước 2: KÍCH HOẠT DỰ PHÒNG - Nếu kho chính lỗi, nhảy sang hút kho Dự phòng
-                console.warn("⚠️ Kho chính gặp sự cố hoặc cạn băng thông. Đang chuyển mạch sang kho dự phòng...");
+                console.warn("⚠️ Đang chuyển mạch sang kho dự phòng...");
                 try {
                     const responseBackup = await fetch(backupFirebase);
                     if (!responseBackup.ok) throw new Error("Kho dự phòng lỗi");
                     
-                    const lightningDatabaseBackup = await responseBackup.json();
-                    if (lightningDatabaseBackup) {
-                        lightningArray = Object.values(lightningDatabaseBackup).sort((a, b) => b.timestamp - a.timestamp);
+                    const dbBackup = await responseBackup.json();
+                    if (dbBackup) {
+                        let combinedArray = [];
+                        if (dbBackup.temp) combinedArray = combinedArray.concat(Object.values(dbBackup.temp));
+                        if (dbBackup.full) combinedArray = combinedArray.concat(Object.values(dbBackup.full));
+                        
+                        lightningArray = combinedArray.sort((a, b) => b.timestamp - a.timestamp);
                         filterLightning(true);
                     }
-                    statusLabel.innerText = "Hoạt động tốt (Mạng Dự Phòng Đang Chạy)";
-                    statusLabel.style.color = "#ff8c00"; // Hiện màu cam cảnh báo trực ban đang dùng nguồn phụ
+                    statusLabel.innerText = "Hoạt động (Mạng Dự Phòng)";
+                    statusLabel.style.color = "#ff8c00";
                     
                 } catch (backupError) {
-                    // Bước 3: Sập nguồn toàn tập
-                    statusLabel.innerText = "Mất kết nối toàn bộ hệ thống máy chủ sét...";
+                    statusLabel.innerText = "Mất kết nối toàn bộ hệ thống...";
                     statusLabel.style.color = "red";
                 }
             }
