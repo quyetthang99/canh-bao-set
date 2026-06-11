@@ -214,9 +214,9 @@ def crawl_lightning_data():
             time.sleep(3)
 
     # =====================================================================
-    # DỌN DẸP RÁC 7 NGÀY
+    # DỌN DẸP RÁC 14 NGÀY
     # =====================================================================
-    seven_days_ago = current_ts - 604800
+    seven_days_ago = current_ts - 1209600
     diem_xoa = 0
     for k, v in db_data.items():
         if v is None: continue
