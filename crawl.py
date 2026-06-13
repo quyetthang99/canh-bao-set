@@ -18,12 +18,22 @@ def crawl_lightning_data():
 
     url_hymetnet = f"http://hymetnet.gov.vn/lightningmaps/?_t={current_ts}"
     proxy_hymetnet = f"https://api.allorigins.win/raw?url={url_hymetnet}&disableCache=true"
-    
+    # quét lào cai
     api_url_vaisala = (
         f"https://evntools.com/api/lightning/geojson?start_time={start_time}&end_time={end_time}"
         f"&limit=50000&min_lat=21.4543&max_lat=22.5379&min_lon=103.7878&max_lon=105.2957"
     )
 
+    # quét miền bắc
+    #api_url_vaisala = (
+        f"https://evntools.com/api/lightning/geojson?start_time={start_time}&end_time={end_time}"
+        f"&limit=50000&min_lat=19.5000&max_lat=23.5000&min_lon=102.0000&max_lon=108.0000"
+    #)
+    # quét việt nam
+    #api_url_vaisala = (
+        f"https://evntools.com/api/lightning/geojson?start_time={start_time}&end_time={end_time}"
+        f"&limit=50000&min_lat=8.0000&max_lat=24.0000&min_lon=102.0000&max_lon=110.0000"
+    #)
     FIREBASE_MAIN_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
     FIREBASE_BACKUP_URL = "https://datasetweb-duphong-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
     
@@ -78,8 +88,12 @@ def crawl_lightning_data():
                     lat = float(re.search(r'["\']?lat["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE).group(1))
                     lng = float(re.search(r'["\']?lng["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE).group(1))
                     if lat > lng: lat, lng = lng, lat
+                    # quét lào cai
                     if not (21.40 <= lat <= 22.60 and 103.70 <= lng <= 105.30): continue
-                        
+                    # quét miền bắc
+                    #if not (19.50 <= lat <= 23.50 and 102.00 <= lng <= 108.00): continue
+                    # quét việt nam
+                    #if not (8.00 <= lat <= 24.00 and 102.00 <= lng <= 110.00): continue   
                     g_m = re.search(r'["\']?giatri["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE)
                     giatri = float(g_m.group(1)) if g_m else 0.0
                     l_m = re.search(r'["\']?loaiset["\']?\s*:\s*(\d+)', block, re.IGNORECASE)
