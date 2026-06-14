@@ -310,52 +310,6 @@
         const hoangSaMarker = L.marker([16.5000, 112.0000], { icon: islandIcon }).addTo(map).bindTooltip("QUẦN ĐẢO HOÀNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
         const truongSaMarker = L.marker([9.5000, 112.5000], { icon: islandIcon }).addTo(map).bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
-      
-        // 1. Tải và vẽ đường bao biên giới đất liền Việt Nam từ GeoJSON
-        fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries/VNM.geo.json')
-            .then(response => response.json())
-            .then(data => {
-                L.geoJSON(data, {
-                    style: { 
-                        color: '#ff0000', // Mầu đỏ
-                        weight: 2,        // Độ dày nét vẽ
-                        fillOpacity: 0,   // Trong suốt bên trong
-                        interactive: false // Không cho click vào để khỏi vướng thao tác
-                    }
-                }).addTo(map);
-            });
-
-        // Hàm toán học sinh ra đường bo Oval mềm mại 60 điểm
-        function taoVongBaoMemMai(centerLat, centerLng, radiusLat, radiusLng, tiltAngle) {
-            let points = [];
-            let numPoints = 60; // Số điểm càng cao đường cong càng mượt
-            let tiltRad = tiltAngle * Math.PI / 180;
-            for (let i = 0; i <= numPoints; i++) {
-                let angle = (i * 360 / numPoints) * (Math.PI / 180);
-                
-                let lat = radiusLat * Math.sin(angle);
-                let lng = radiusLng * Math.cos(angle);
-                
-                // Xoay nghiêng hình Oval để khớp với chiều dài của quần đảo
-                let rotatedLat = lat * Math.cos(tiltRad) - lng * Math.sin(tiltRad);
-                let rotatedLng = lat * Math.sin(tiltRad) + lng * Math.cos(tiltRad);
-                
-                points.push([centerLat + rotatedLat, centerLng + rotatedLng]);
-            }
-            return points;
-        }
-
-        // 2. Vẽ vòng bao Quần đảo Hoàng Sa (Bo tròn mượt mà)
-        L.polygon(taoVongBaoMemMai(16.4, 112.0, 1.1, 1.5, -15), { 
-            color: '#ff0000', weight: 2, fillOpacity: 0.05, interactive: false 
-        }).addTo(map);
-
-        // 3. Vẽ vòng bao Quần đảo Trường Sa (Bo tròn mượt mà, xoay chéo 25 độ)
-        L.polygon(taoVongBaoMemMai(9.8, 114.0, 1.8, 3.2, 25), { 
-            color: '#ff0000', weight: 2, fillOpacity: 0.05, interactive: false 
-        }).addTo(map);
-        
-        // =========================================================================
         
         function detectPoleName(properties) {
             if (!properties) return "Không rõ tên";
