@@ -10,7 +10,7 @@ def crawl_lightning_data():
     print("🚀 KHỞI ĐỘNG HỆ THỐNG V15 (MÔ HÌNH KHO ĐỆM & KHO CHÍNH) - ĐÃ TỐI ƯU HEADERS & LOGS...")
     
     now_utc = datetime.now(timezone.utc)
-    past_utc = now_utc - timedelta(minutes=90) # Quét 90 phút để vét sạch dữ liệu trễ
+    past_utc = now_utc - timedelta(hours=3) # Quét lùi 3 tiếng (180 phút) để vét sạch dữ liệu trễ
     
     end_time = now_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
     start_time = past_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
@@ -129,9 +129,9 @@ def crawl_lightning_data():
                     
                     ts = datetime(nam, thang, ngay, gio, phut, giay, tzinfo=timezone.utc).timestamp()
                     
-                    # Chỉ lấy dữ liệu trong vòng 90 phút qua
-                    if current_ts - ts <= 5400: 
-                        phan_luong_set(lat, lng, giatri, loaiset, ts, "Hymetnet")
+                    # Chỉ lấy dữ liệu trong vòng 3 tiếng qua (180 phút * 60 = 10800 giây)
+                    if current_ts - ts <= 10800: 
+                       phan_luong_set(lat, lng, giatri, loaiset, ts, "Hymetnet")
                 except: 
                     continue
             print(f"✅ Đồng bộ xong luồng Hymetnet.")
@@ -189,13 +189,13 @@ def crawl_lightning_data():
     xoa_temp = 0
     xoa_full = 0
     
-    seventy_mins_ago = current_ts - 4200   # Kho tạm dọn sau 70 phút (giữ đủ lâu để đối chiếu độ trễ)
+    don_kho_tam_ago = current_ts - 12600   # Kho tạm dọn sau 210 phút (3.5 tiếng) để cover vòng quét 3 tiếng
     seven_days_ago = current_ts - 604800   # Kho chính lưu lịch sử dài hạn trong 7 ngày
 
     # Dọn dẹp kho tạm (temp)
     temp_db = db_data.get("temp", {})
     for k, v in temp_db.items():
-        if v and float(v.get("timestamp", 0)) < seventy_mins_ago:
+        if v and float(v.get("timestamp", 0)) < don_kho_tam_ago:
             updates[f"temp/{k}"] = None
             xoa_temp += 1
 
@@ -227,7 +227,7 @@ def crawl_lightning_data():
             
         print(f"✅ VẬN HÀNH HOÀN TẤT!")
         print(f"   + Nạp mới: {so_luong_temp} điểm TẠM | {so_luong_full} điểm CHÍNH THỨC (Có cường độ kA chuẩn).")
-        print(f"   + Đã quét sạch: {xoa_temp} điểm tạm quá hạn (>70p) | {xoa_full} điểm lịch sử cũ (>7 ngày).")
+        print(f"   + Đã quét sạch: {xoa_temp} điểm tạm quá hạn (>3.5h) | {xoa_full} điểm lịch sử cũ (>7 ngày).")
     else:
         print(f"\n✅ Hệ thống kiểm tra xong. Không phát hiện xung sét mới hoặc rác cần dọn.")
 
