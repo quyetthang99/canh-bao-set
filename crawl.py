@@ -7,7 +7,7 @@ import hashlib
 from datetime import datetime, timezone, timedelta
 
 def crawl_lightning_data():
-    print("🚀 KHỞI ĐỘNG HỆ THỐNG V15 (MÔ HÌNH KHO ĐỆM & KHO CHÍNH) - ĐÃ TỐI ƯU HEADERS & LOGS...")
+    print("🚀 KHỞI ĐỘNG HỆ THỐNG V15 (MÔ HÌNH KHO ĐỆM & KHO CHÍNH) - LOGIC PHÂN LUỒNG MỚI...")
     
     now_utc = datetime.now(timezone.utc)
     past_utc = now_utc - timedelta(hours=3) # Quét lùi 3 tiếng (180 phút) để vét sạch dữ liệu trễ
@@ -69,21 +69,20 @@ def crawl_lightning_data():
             "src": nguon, "is_new_format": True
         }
 
-        # ĐIỀU KIỆN PHÂN LUỒNG DỮ LIỆU
-        is_rounded_time = (ts_int % 60 == 0) # Sét bị làm tròn giây (dữ liệu thô)
-        is_no_amplitude = (giatri == 0 or giatri == 0.0) # Sét không có cường độ kA
-
         # Kiểm tra trùng lặp trong database hiện tại để tránh ghi đè dữ liệu cũ
         in_temp = key in db_data.get("temp", {})
         in_full = key in db_data.get("full", {})
 
-        if is_rounded_time or is_no_amplitude:
-            # Dữ liệu thô/lỗi -> Đẩy vào kho tạm (temp)
+        # ĐIỀU KIỆN PHÂN LUỒNG DỮ LIỆU MỚI: CHỈ XÉT CƯỜNG ĐỘ (BỎ XÉT GIÂY CHẴN)
+        is_no_amplitude = (giatri == 0 or giatri == 0.0)
+
+        if is_no_amplitude:
+            # Không có cường độ -> Đẩy vào kho tạm (temp)
             if not in_temp and f"temp/{key}" not in updates:
                 updates[f"temp/{key}"] = data_packet
                 so_luong_temp += 1
         else:
-            # Dữ liệu SẠCH chuẩn cường độ kA -> Đẩy vào kho chính (full)
+            # Có cường độ kA chuẩn -> Đẩy thẳng vào kho chính (full)
             if not in_full and f"full/{key}" not in updates:
                 updates[f"full/{key}"] = data_packet
                 so_luong_full += 1
@@ -111,7 +110,7 @@ def crawl_lightning_data():
                     if lat > lng: lat, lng = lng, lat
                 
                     # Bộ lọc tọa độ khu vực giám sát Lào Cai
-                    if not (21.40 <= lat <= 22.60 and 103.70 <= lng <= 105.30): 
+                    if not (21.4543 <= lat <= 22.5379 and 103.7878 <= lng <= 105.2957): 
                         continue
 
                     g_m = re.search(r'["\']?giatri["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE)
@@ -131,7 +130,7 @@ def crawl_lightning_data():
                     
                     # Chỉ lấy dữ liệu trong vòng 3 tiếng qua (180 phút * 60 = 10800 giây)
                     if current_ts - ts <= 10800: 
-                       phan_luong_set(lat, lng, giatri, loaiset, ts, "Hymetnet")
+                        phan_luong_set(lat, lng, giatri, loaiset, ts, "Hymetnet")
                 except: 
                     continue
             print(f"✅ Đồng bộ xong luồng Hymetnet.")
