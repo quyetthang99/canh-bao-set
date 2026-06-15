@@ -395,8 +395,7 @@
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
             
-            const mainFirebase = 'https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
-            const backupFirebase = 'https://datasetweb-duphong-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
+            const mainFirebase = 'https://datasetweb-duphong-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
             
             try {
                 const response = await fetch(mainFirebase);
