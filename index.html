@@ -419,7 +419,7 @@
                                     lng: item.lng,
                                     giatri: item.g !== undefined ? item.g : 0,
                                     timestamp: item.t,
-                                    loaiset: 0,
+                                    loaiset: item.l !== undefined ? item.l : 0,  // <--- ĐÃ SỬA CHỖ NÀY ĐỂ ĐỌC SÉT TRÊN MÂY
                                     src: "Cảm biến Tổng hợp",
                                     is_new_format: true
                                 });
