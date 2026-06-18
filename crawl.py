@@ -37,7 +37,7 @@ def crawl_lightning_data():
     #     f"&limit=50000&min_lat=8.0000&max_lat=24.0000&min_lon=102.0000&max_lon=110.0000"
     # )
 
-    FIREBASE_URL = "https://datasetweb-duphong-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
+    FIREBASE_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
     
     # Kéo dữ liệu cũ về để chuẩn bị dọn rác
     db_data = {}
