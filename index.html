@@ -132,8 +132,7 @@
 
                 <label for="time-filter"><b>Lọc theo thời gian:</b></label>
                 <select id="time-filter" onchange="filterLightning()">
-                    <option value="600" selected>10 Phút qua</option>
-                    <option value="1800">30 Phút qua</option>
+                    <option value="1800" selected>30 Phút qua</option>
                     <option value="7200">2 Giờ qua</option>
                     <option value="21600">6 Giờ qua</option>
                     <option value="43200">12 Giờ qua</option>
@@ -394,34 +393,45 @@
 
        async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
-            
-            // LINK KHO WEB (Đã được Bot Tele bơm dữ liệu sang liên tục)
             const webFirebase = 'https://datasetweb-duphong-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
             
             try {
-                // Dùng bùa chống Cache để trình duyệt luôn lấy sét mới nhất
                 const response = await fetch(webFirebase, { cache: 'no-store' });
                 if (!response.ok) throw new Error("Lỗi tải dữ liệu");
                 
                 const db = await response.json();
                 if (db) {
-                    // Kho Tele lưu phẳng (không chia temp/full), lọc bỏ các giá trị rác/null
-                    let rawData = Object.values(db).filter(item => item && typeof item === 'object');
+                    let combinedArray = [];
                     
-                    // CHUYỂN NGỮ: Dịch ngôn ngữ rút gọn của Tele sang định dạng Web hiểu được
-                    lightningArray = rawData.map(item => ({
-                        lat: item.lat,
-                        lng: item.lng,
-                        giatri: item.g !== undefined ? item.g : 0,        // Tele dùng 'g'
-                        timestamp: item.t !== undefined ? item.t : 0,     // Tele dùng 't'
-                        loaiset: 0,                                       // Mặc định 0 = Sét xuống đất (Bot Tele đã lọc sẵn)
-                        src: "Cảm biến Tổng hợp",                         // Tên nguồn hiển thị
-                        is_new_format: true                               // Kích hoạt logic vẽ bản đồ mới
-                    })).sort((a, b) => b.timestamp - a.timestamp);
+                    // 1. PHỤC HỒI DỮ LIỆU CŨ: Rút sét từ 2 thư mục cũ (temp và full) nếu vẫn còn
+                    if (db.temp) combinedArray = combinedArray.concat(Object.values(db.temp));
+                    if (db.full) combinedArray = combinedArray.concat(Object.values(db.full));
                     
+                    // 2. NẠP DỮ LIỆU MỚI: Rút sét từ format của Bot Tele (Nằm thẳng ở ngoài)
+                    for (let key in db) {
+                        // Bỏ qua thư mục temp và full để không bị lỗi
+                        if (key !== 'temp' && key !== 'full' && db[key] && typeof db[key] === 'object') {
+                            let item = db[key];
+                            // Nhận diện chuẩn format mới của Tele (có biến 't')
+                            if (item.t !== undefined) {
+                                combinedArray.push({
+                                    lat: item.lat,
+                                    lng: item.lng,
+                                    giatri: item.g !== undefined ? item.g : 0,
+                                    timestamp: item.t,
+                                    loaiset: 0,
+                                    src: "Cảm biến Tổng hợp",
+                                    is_new_format: true
+                                });
+                            }
+                        }
+                    }
+                    
+                    // 3. SẮP XẾP VÀ VẼ BẢN ĐỒ: Trộn đều Mới và Cũ, xếp từ mới nhất -> cũ nhất
+                    lightningArray = combinedArray.sort((a, b) => b.timestamp - a.timestamp);
                     filterLightning(true);
                 }
-                statusLabel.innerText = "Hoạt động tốt (Đồng bộ Data)";
+                statusLabel.innerText = "Hoạt động tốt (Đã gộp Cũ & Mới)";
                 statusLabel.style.color = "green";
                 
             } catch (error) {
