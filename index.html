@@ -392,50 +392,42 @@
             setTimeout(() => { L.popup().setLatLng([lat, lng]).setContent(`<b style="color:#0056b3; font-size:14px;">🎯 Vị trí tìm kiếm:</b><br>${name}`).openOn(map); }, 1500);
         }
 
-        async function fetchLightningData() {
+       async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
             
-            const mainFirebase = 'https://datasetweb-duphong-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
+            // LINK KHO WEB (Đã được Bot Tele bơm dữ liệu sang liên tục)
+            const webFirebase = 'https://datasetweb-duphong-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
             
             try {
-                const response = await fetch(mainFirebase);
-                if (!response.ok) throw new Error("Kho chính hết hạn mức");
+                // Dùng bùa chống Cache để trình duyệt luôn lấy sét mới nhất
+                const response = await fetch(webFirebase, { cache: 'no-store' });
+                if (!response.ok) throw new Error("Lỗi tải dữ liệu");
                 
                 const db = await response.json();
                 if (db) {
-                    // GỘP 2 THƯ MỤC TEMP VÀ FULL LẠI THÀNH 1 MẢNG ĐỂ HIỂN THỊ
-                    let combinedArray = [];
-                    if (db.temp) combinedArray = combinedArray.concat(Object.values(db.temp));
-                    if (db.full) combinedArray = combinedArray.concat(Object.values(db.full));
+                    // Kho Tele lưu phẳng (không chia temp/full), lọc bỏ các giá trị rác/null
+                    let rawData = Object.values(db).filter(item => item && typeof item === 'object');
                     
-                    lightningArray = combinedArray.sort((a, b) => b.timestamp - a.timestamp);
+                    // CHUYỂN NGỮ: Dịch ngôn ngữ rút gọn của Tele sang định dạng Web hiểu được
+                    lightningArray = rawData.map(item => ({
+                        lat: item.lat,
+                        lng: item.lng,
+                        giatri: item.g !== undefined ? item.g : 0,        // Tele dùng 'g'
+                        timestamp: item.t !== undefined ? item.t : 0,     // Tele dùng 't'
+                        loaiset: 0,                                       // Mặc định 0 = Sét xuống đất (Bot Tele đã lọc sẵn)
+                        src: "Cảm biến Tổng hợp",                         // Tên nguồn hiển thị
+                        is_new_format: true                               // Kích hoạt logic vẽ bản đồ mới
+                    })).sort((a, b) => b.timestamp - a.timestamp);
+                    
                     filterLightning(true);
                 }
-                statusLabel.innerText = "Hoạt động tốt (Bản đồ Chính)";
+                statusLabel.innerText = "Hoạt động tốt (Đồng bộ Data)";
                 statusLabel.style.color = "green";
                 
             } catch (error) {
-                console.warn("⚠️ Đang chuyển mạch sang kho dự phòng...");
-                try {
-                    const responseBackup = await fetch(backupFirebase);
-                    if (!responseBackup.ok) throw new Error("Kho dự phòng lỗi");
-                    
-                    const dbBackup = await responseBackup.json();
-                    if (dbBackup) {
-                        let combinedArray = [];
-                        if (dbBackup.temp) combinedArray = combinedArray.concat(Object.values(dbBackup.temp));
-                        if (dbBackup.full) combinedArray = combinedArray.concat(Object.values(dbBackup.full));
-                        
-                        lightningArray = combinedArray.sort((a, b) => b.timestamp - a.timestamp);
-                        filterLightning(true);
-                    }
-                    statusLabel.innerText = "Hoạt động (Mạng Dự Phòng)";
-                    statusLabel.style.color = "#ff8c00";
-                    
-                } catch (backupError) {
-                    statusLabel.innerText = "Mất kết nối toàn bộ hệ thống...";
-                    statusLabel.style.color = "red";
-                }
+                console.warn("⚠️ Lỗi tải dữ liệu:", error);
+                statusLabel.innerText = "Mất kết nối máy chủ...";
+                statusLabel.style.color = "red";
             }
         }
 
