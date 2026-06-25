@@ -74,16 +74,35 @@
             <div class="author-credit">Design by Quyết Thắng</div>
             
             <p style="margin-top: 0;">Trạng thái: <span id="loading-status" class="status" style="color: orange;">Đang tải...</span></p>
-            <p style="margin-bottom: 5px;">Số điểm sét: <span id="lightning-count" style="font-weight: bold; color: #d9534f; font-size: 18px;">0</span></p>
             
+            <div class="checkbox-group" style="margin-bottom: 8px;">
+                <label><input type="checkbox" id="chk-cg" checked onchange="filterLightning(false)"> 🔴 Bật Sét Xuống đất</label>
+                <label><input type="checkbox" id="chk-ic" checked onchange="filterLightning(false)"> 🟠 Bật Sét Trong mây</label>
+            </div>
+
+            <p style="margin-bottom: 5px;">Số điểm sét: <span id="lightning-count" style="font-weight: bold; color: #d9534f; font-size: 18px;">0</span></p>
             <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #ccc;">
                 <span><b style="color: red;">⚡ Xuống đất:</b> <span id="cg-count" style="font-weight: bold;">0</span></span>
                 <span><b style="color: #0056b3;">☁️ Trong mây:</b> <span id="ic-count" style="font-weight: bold;">0</span></span>
             </div>
 
-            <div class="checkbox-group">
-                <label><input type="checkbox" id="chk-cg" checked onchange="filterLightning(false)"> 🔴 Bật Sét Xuống đất</label>
-                <label><input type="checkbox" id="chk-ic" checked onchange="filterLightning(false)"> 🟠 Bật Sét Trong mây</label>
+            <div class="checkbox-group" style="background: #fff0f0; border-color: #ffcccc; padding: 10px;">
+                <label style="font-weight:bold; color:#d32f2f; margin-bottom: 8px; border-bottom: 1px solid #ffcccc; padding-bottom: 4px;">⏳ Tìm sét theo khung giờ:</label>
+                
+                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
+                    <span>Từ:</span>
+                    <input type="datetime-local" id="start-time" style="width: 145px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
+                </div>
+                
+                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 10px;">
+                    <span>Đến:</span>
+                    <input type="datetime-local" id="end-time" style="width: 145px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
+                </div>
+                
+                <div style="display: flex; gap: 6px;">
+                    <button onclick="filterLightning()" style="background:#28a745; color:white; border:none; padding:6px; border-radius:3px; flex:1; cursor:pointer; font-weight:bold; font-size:11px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: 0.2s;">🔍 Tìm kiếm</button>
+                    <button onclick="clearTimeFilter()" style="background:#6c757d; color:white; border:none; padding:6px; border-radius:3px; flex:1; cursor:pointer; font-weight:bold; font-size:11px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: 0.2s;">✖ Hủy lọc</button>
+                </div>
             </div>
             
             <div class="filter-section">
@@ -130,7 +149,7 @@
                     <option value="Sóc Trăng">Sóc Trăng (Hậu Giang)</option>
                 </select>
 
-                <label for="time-filter"><b>Lọc theo thời gian:</b></label>
+                <label for="time-filter"><b>Lọc theo thời gian (Mặc định):</b></label>
                 <select id="time-filter" onchange="filterLightning()">
                     <option value="1800" selected>30 Phút qua</option>
                     <option value="7200">2 Giờ qua</option>
@@ -149,7 +168,7 @@
             </div>
             
             <div style="margin-top: 10px; font-size: 11px; color: #666;">
-                <i>* Chọn Tỉnh để tự động khoanh vùng sét. Bật lớp Lưới điện ở bảng góc trái.</i>
+                <i>* Chọn Tỉnh để tự động khoanh vùng sét. Bật lớp Lưới điện ở bảng góc trái. Lưu ý: Lọc khung giờ sẽ ưu tiên hơn lọc Mặc định.</i>
             </div>
         </div>
     </div>
@@ -455,6 +474,13 @@
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
+        // HÀM RESET BỘ LỌC TÙY CHỈNH
+        function clearTimeFilter() {
+            document.getElementById('start-time').value = '';
+            document.getElementById('end-time').value = '';
+            filterLightning(); // Tự động vẽ lại bản đồ bằng mốc mặc định
+        }
+
         // KHÔI PHỤC: TÍNH NĂNG TÍNH TOÁN KHOẢNG CÁCH SÉT TRONG ĐA GIÁC ĐẾN CỘT
         function filterLightning(autoZoom = false) {
             lightningLayer.clearLayers();
@@ -462,8 +488,16 @@
             const selectedProvince = document.getElementById('province-filter').value;
             const currentSeconds = Date.now() / 1000;
             const threshold = currentSeconds - filterSeconds;
+            
             const showCG = document.getElementById('chk-cg').checked;
             const showIC = document.getElementById('chk-ic').checked;
+
+            // NẮM BẮT GIỜ TÙY CHỈNH TỪ GIAO DIỆN
+            let startTimeVal = document.getElementById('start-time').value;
+            let endTimeVal = document.getElementById('end-time').value;
+            let customStartTS = startTimeVal ? new Date(startTimeVal).getTime() / 1000 : 0;
+            let customEndTS = endTimeVal ? new Date(endTimeVal).getTime() / 1000 : Infinity;
+            let isCustomTime = startTimeVal || endTimeVal;
 
             if (autoZoom) {
                 if (selectedProvince === "all") map.setView([16.5, 105.0], 6); 
@@ -485,7 +519,15 @@
 
             for (let i = 0; i < lightningArray.length; i++) {
                 const record = lightningArray[i];
-                if (record.timestamp < threshold) break; 
+                
+                // KIỂM TRA KHUNG GIỜ TÙY CHỈNH
+                if (isCustomTime) {
+                    if (record.timestamp > customEndTS) continue; // Bỏ qua nếu xảy ra sau mốc ĐẾN
+                    if (record.timestamp < customStartTS) break;  // Ngắt vòng lặp nếu cũ hơn mốc TỪ (do mảng đã xếp mới->cũ)
+                } else {
+                    // NẾU KHÔNG DÙNG GIỜ TÙY CHỈNH THÌ DÙNG LỌC MẶC ĐỊNH
+                    if (record.timestamp < threshold) break; 
+                }
 
                 let isCloud = record.loaiset === 1 || record.loaiset === "Trong mây";
                 if (isCloud && !showIC) continue; 
