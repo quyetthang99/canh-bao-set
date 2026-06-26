@@ -19,7 +19,7 @@
             position: absolute; top: 15px; right: 50px;
             background: rgba(255, 255, 255, 0.95); padding: 15px;
             border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            z-index: 1000; width: 260px; transition: all 0.3s ease;
+            z-index: 1000; width: 270px; transition: all 0.3s ease;
         }
         .panel-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 2px solid #eee; padding-bottom: 8px; margin-bottom: 5px; }
         .panel-header h3 { margin: 0; color: #333; font-size: 16px; }
@@ -39,11 +39,6 @@
         .island-label { font-weight: bold; color: #bd0000; background: rgba(255, 255, 255, 0.9); border: 1px solid #bd0000; border-radius: 4px; font-size: 12px; padding: 4px 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
         .lightning-icon-div { cursor: pointer; filter: drop-shadow(0 0 2px rgba(0,0,0,0.8)); transition: transform 0.2s; }
         .lightning-icon-div:hover { transform: scale(1.4); }
-
-        /* CHECKBOX LỌC SÉT */
-        .checkbox-group { background: #fff3e0; padding: 8px; border-radius: 6px; border: 1px solid #ffe0b2; margin-bottom: 10px; font-size: 13px; }
-        .checkbox-group label { display: block; margin-bottom: 4px; cursor: pointer; font-weight: bold; }
-        .checkbox-group input { margin-right: 6px; accent-color: #ff5722; cursor: pointer; }
 
         /* THANH TÌM KIẾM THIẾT BỊ */
         .search-box { background: #f1f8ff; padding: 10px; border-radius: 6px; margin-top: 10px; border: 1px solid #cce5ff; }
@@ -73,30 +68,31 @@
         <div id="panel-content">
             <div class="author-credit">Design by Quyết Thắng</div>
             
-            <p style="margin-top: 0;">Trạng thái: <span id="loading-status" class="status" style="color: orange;">Đang tải...</span></p>
+            <p style="margin-top: 0; margin-bottom: 15px;">Trạng thái: <span id="loading-status" class="status" style="color: orange;">Đang tải...</span></p>
             
-            <div class="checkbox-group" style="margin-bottom: 8px;">
-                <label><input type="checkbox" id="chk-cg" checked onchange="filterLightning(false)"> 🔴 Bật Sét Xuống đất</label>
-                <label><input type="checkbox" id="chk-ic" checked onchange="filterLightning(false)"> 🟠 Bật Sét Trong mây</label>
+            <div style="font-size: 14px; margin-bottom: 8px;">Số điểm sét: <span id="lightning-count" style="font-weight: bold; color: #d9534f; font-size: 18px;">0</span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #ccc;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" id="chk-cg" checked onchange="filterLightning(false)" style="accent-color: red; cursor: pointer;">
+                    <b style="color: red;">⚡ Xuống đất:</b> <span id="cg-count" style="font-weight: bold;">0</span>
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" id="chk-ic" checked onchange="filterLightning(false)" style="accent-color: #0056b3; cursor: pointer;">
+                    <b style="color: #0056b3;">☁️ Trong mây:</b> <span id="ic-count" style="font-weight: bold;">0</span>
+                </label>
             </div>
 
-            <p style="margin-bottom: 5px;">Số điểm sét: <span id="lightning-count" style="font-weight: bold; color: #d9534f; font-size: 18px;">0</span></p>
-            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #ccc;">
-                <span><b style="color: red;">⚡ Xuống đất:</b> <span id="cg-count" style="font-weight: bold;">0</span></span>
-                <span><b style="color: #0056b3;">☁️ Trong mây:</b> <span id="ic-count" style="font-weight: bold;">0</span></span>
-            </div>
-
-            <div class="checkbox-group" style="background: #fff0f0; border-color: #ffcccc; padding: 10px;">
-                <label style="font-weight:bold; color:#d32f2f; margin-bottom: 8px; border-bottom: 1px solid #ffcccc; padding-bottom: 4px;">⏳ Tìm sét theo khung giờ:</label>
+            <div style="background: #fff0f0; border: 1px solid #ffcccc; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                <label style="font-weight:bold; color:#d32f2f; display:block; margin-bottom: 8px; border-bottom: 1px solid #ffcccc; padding-bottom: 4px;">⏳ Tìm sét theo khung giờ:</label>
                 
                 <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
                     <span>Từ:</span>
-                    <input type="datetime-local" id="start-time" style="width: 145px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
+                    <input type="datetime-local" id="start-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
                 </div>
                 
                 <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 10px;">
                     <span>Đến:</span>
-                    <input type="datetime-local" id="end-time" style="width: 145px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
+                    <input type="datetime-local" id="end-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
                 </div>
                 
                 <div style="display: flex; gap: 6px;">
@@ -167,7 +163,7 @@
                 <div id="search-results" style="display: none;"></div>
             </div>
             
-            <div style="margin-top: 10px; font-size: 11px; color: #666;">
+            <div style="margin-top: 10px; font-size: 11px; color: #666; line-height: 1.4;">
                 <i>* Chọn Tỉnh để tự động khoanh vùng sét. Bật lớp Lưới điện ở bảng góc trái. Lưu ý: Lọc khung giờ sẽ ưu tiên hơn lọc Mặc định.</i>
             </div>
         </div>
@@ -227,7 +223,7 @@
 
         const map = L.map('map', { center: [22.0000, 104.5000], zoom: 8, layers: [osmLayer] });
 
-        // KHÔI PHỤC: THANH CÔNG CỤ VẼ ĐA GIÁC (DRAW CONTROL)
+        // THANH CÔNG CỤ VẼ ĐA GIÁC (DRAW CONTROL)
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
         const drawControl = new L.Control.Draw({
@@ -317,7 +313,7 @@
 
         map.on('overlayadd overlayremove', function() { filterLightning(); searchPoles(); });
 
-        // KHÔI PHỤC: ICON SÉT VÀ CÁC MỐC HẢI ĐẢO / THỦ ĐÔ
+        // ICON SÉT VÀ CÁC MỐC HẢI ĐẢO / THỦ ĐÔ
         const lightningIconRed = L.divIcon({ html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>', className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12] });
         const lightningIconCloud = L.divIcon({ html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#546E7A" stroke="#ffffff" stroke-width="0.5" d="M17.5,19A4.5,4.5 0 0,0 22,14.5C22,12.18 20.24,10.28 18,10.05C17.44,6.64 14.48,4 11,4C7.71,4 4.86,6.19 3.65,9.17C1.59,9.61 0,11.45 0,13.66C0,16.05 1.95,18 4.34,18H5V16H4.34C3.05,16 2,14.95 2,13.66C2,12.44 2.92,11.41 4.12,11.27L5.05,11.16L5.35,10.29C6.26,7.63 8.78,5.8 11.66,5.8C14.86,5.8 17.52,8.35 17.65,11.5L17.7,12.2L18.4,12.23C20.17,12.33 21.6,13.82 21.6,15.6C21.6,17.42 20.12,18.9 18.3,18.9H17V20.9H17.5Z"></path><path fill="#FFC107" stroke="#ffffff" stroke-width="1" d="M13,22l-3-8h2.5L11.5,5h3.5l3,8h-2.5L17,22L13,22z"></path></svg>', className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
 
@@ -438,8 +434,8 @@
                                     lng: item.lng,
                                     giatri: item.g !== undefined ? item.g : 0,
                                     timestamp: item.t,
-                                    loaiset: item.l !== undefined ? item.l : 0,  // <--- ĐÃ SỬA CHỖ NÀY ĐỂ ĐỌC SÉT TRÊN MÂY
-                                    src: "Cảm biến Tổng hợp",
+                                    loaiset: item.l !== undefined ? item.l : 0, 
+                                    src: item.src ? item.src : "Cảm biến Tổng hợp",
                                     is_new_format: true
                                 });
                             }
@@ -462,10 +458,8 @@
 
         function exportExcel() {
             if (!currentExportData || currentExportData.length === 0) { alert("Không có dữ liệu điểm sét nào trong vùng để xuất báo cáo!"); return; }
-            // Đã thêm chữ "Nguồn Sét" vào tiêu đề cột
             let csvContent = "\uFEFFSTT,Vĩ Độ,Kinh Độ,Thời Gian Ghi Nhận,Cường Độ,Loại Sét,Nguồn Sét,Cột Gần Nhất,Khoảng Cách\n";
             currentExportData.forEach((row) => {
-                // Đã thêm biến row.src vào file
                 csvContent += `${row.stt},${row.lat},${row.lng},"${row.time}",${row.giatri},${row.loaiset},"${row.src}","${row.poleName}","${row.distSetToCot}"\n`;
             });
             const link = document.createElement("a");
@@ -481,7 +475,7 @@
             filterLightning(); // Tự động vẽ lại bản đồ bằng mốc mặc định
         }
 
-        // KHÔI PHỤC: TÍNH NĂNG TÍNH TOÁN KHOẢNG CÁCH SÉT TRONG ĐA GIÁC ĐẾN CỘT
+        // TÍNH TOÁN KHOẢNG CÁCH SÉT TRONG ĐA GIÁC ĐẾN CỘT
         function filterLightning(autoZoom = false) {
             lightningLayer.clearLayers();
             const filterSeconds = parseInt(document.getElementById('time-filter').value);
@@ -522,10 +516,9 @@
                 
                 // KIỂM TRA KHUNG GIỜ TÙY CHỈNH
                 if (isCustomTime) {
-                    if (record.timestamp > customEndTS) continue; // Bỏ qua nếu xảy ra sau mốc ĐẾN
-                    if (record.timestamp < customStartTS) break;  // Ngắt vòng lặp nếu cũ hơn mốc TỪ (do mảng đã xếp mới->cũ)
+                    if (record.timestamp > customEndTS) continue; 
+                    if (record.timestamp < customStartTS) break;  
                 } else {
-                    // NẾU KHÔNG DÙNG GIỜ TÙY CHỈNH THÌ DÙNG LỌC MẶC ĐỊNH
                     if (record.timestamp < threshold) break; 
                 }
 
@@ -537,9 +530,8 @@
                 if (record.is_new_format) {
                     let typeText = record.loaiset === 0 ? "Xuống đất" : "Trong mây";
                     let giatriText = (record.giatri === 0 || record.giatri === 0.0) ? "Không có DL" : `${record.giatri} kA`;
-                    let nguonSet = record.src ? record.src : "Không rõ"; // LẤY TÊN NGUỒN TỪ FIREBASE
+                    let nguonSet = record.src ? record.src : "Không rõ";
                     
-                    // Thêm trường src vào object
                     parsedStrikes.push({ lat: record.lat, lng: record.lng, giatri: giatriText, loaiset: typeText, src: nguonSet });
                 }
 
@@ -570,7 +562,6 @@
                         distSetToCot = `${dS2C.toFixed(1)} m`;
                     }
 
-                    // Lưu src vào mảng báo cáo
                     insidePolygonData.push({
                         stt: count + 1, lat: strike.lat.toFixed(4), lng: strike.lng.toFixed(4),
                         giatri: strike.giatri, loaiset: strike.loaiset, time: timeString, src: strike.src, 
@@ -582,7 +573,7 @@
                     else { cgCount++; }
                     let colorCode = strike.loaiset.includes("đất") ? "red" : "#ff8c00";
 
-                    // HIỂN THỊ NGUỒN TRÊN POPUP (KHI CLICK VÀO SÉT)
+                    // HIỂN THỊ NGUỒN TRÊN POPUP
                     const popupHTML = `
                         <div style="font-family: Arial; font-size: 13px; width: 230px; line-height: 1.5;">
                             <b style="color:${colorCode}; font-size:14px;">⚡ THÔNG TIN SÉT</b><hr style="margin:5px 0;">
@@ -595,7 +586,7 @@
                             
                             <hr style="margin:6px 0; border: 0; border-top: 1px dashed #ccc;">
                             <div style="text-align: center; margin-top: 5px; margin-bottom: 2px;">
-                            <a href="https://www.google.com/maps/search/?api=1&query=${strike.lat},${strike.lng}" target="_blank" style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; border-radius: 4px; display: inline-block; transition: 0.2s;">
+                                <a href="https://www.google.com/maps?q=${strike.lat},${strike.lng}" target="_blank" style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; border-radius: 4px; display: inline-block; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
                                     📍 Mở Google Maps
                                 </a>
                             </div>
@@ -612,12 +603,12 @@
             document.getElementById('ic-count').innerText = icCount;
             currentExportData = insidePolygonData;
 
-            // HIỂN THỊ NGUỒN TRÊN BẢNG BÁO CÁO (KHI VẼ ĐA GIÁC)
+            // HIỂN THỊ NGUỒN TRÊN BẢNG BÁO CÁO
             if (activePolygonLayer) {
                 let tableRowsHtml = "";
                 insidePolygonData.forEach((item) => {
                     let intensityColor = (item.giatri === "Không có DL") ? "#777" : "#d32f2f";
-                    let srcColor = item.src.includes("Hymetnet") ? "green" : "#ff8c00"; // Đổi màu để dễ nhận biết nguồn
+                    let srcColor = item.src.includes("Hymetnet") ? "green" : "#ff8c00"; 
                     
                     tableRowsHtml += `<tr style="border-bottom: 1px solid #e0e0e0;">
                         <td style="padding: 6px; text-align: center;">${item.stt}</td>
