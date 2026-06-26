@@ -27,7 +27,7 @@
         .info-panel.collapsed #panel-content { display: none; }
         .info-panel.collapsed { padding-bottom: 10px; width: 220px; }
 
-        .author-credit { font-size: 12px; color: #666; font-style: italic; margin-top: 5px; margin-bottom: 10px; text-align: right; }
+        .author-credit { font-size: 12px; color: #666; font-style: italic; margin-top: 5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;}
         .status { font-weight: bold; }
         .popup-custom { max-height: 200px; overflow-y: auto; font-size: 13px; }
         .popup-custom b { color: #0056b3; }
@@ -55,9 +55,29 @@
         .layer-collapse-btn { padding: 8px 12px; background: #fff; border-radius: 4px; font-weight: bold; cursor: pointer; color: #0056b3; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
         .leaflet-control-layers:not(.custom-collapsed) .layer-collapse-btn { border-bottom: 1px solid #ccc; border-bottom-left-radius: 0; border-bottom-right-radius: 0; background: #f8f9fa; box-shadow: none; }
         .layer-collapse-btn:hover { background: #e9ecef; }
+
+        /* BẢNG POPUP ĐĂNG NHẬP */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 300px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); animation: slideDown 0.3s ease; }
+        @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-content input { width: 90%; padding: 10px; margin: 15px 0; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; text-align: center; font-weight: bold; }
+        .modal-content button { padding: 8px 15px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; transition: 0.2s;}
     </style>
 </head>
 <body>
+
+    <div id="login-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="color:#d32f2f; margin-top:0;">🔒 Yêu Cầu Đăng Nhập</h3>
+            <p id="login-msg" style="font-size: 13px; color: #555; line-height: 1.4;">Tính năng này chỉ dành cho nội bộ.<br>Vui lòng nhập mật khẩu để mở khóa.</p>
+            <input type="password" id="login-pass" placeholder="Nhập mật khẩu..." onkeypress="if(event.key === 'Enter') checkLogin()">
+            <p id="login-error" style="color: red; font-size: 11px; margin: 0 0 10px 0; display: none;">Sai mật khẩu!</p>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button onclick="checkLogin()" style="background: #007bff; color: white;">Mở khóa</button>
+                <button onclick="closeModal()" style="background: #e0e0e0; color: #333;">Hủy bỏ</button>
+            </div>
+        </div>
+    </div>
 
     <div class="info-panel" id="main-info-panel">
         <div class="panel-header" onclick="toggleInfoPanel()">
@@ -66,7 +86,10 @@
         </div>
         
         <div id="panel-content">
-            <div class="author-credit">Design by Quyết Thắng</div>
+            <div class="author-credit">
+                <span>Design by Quyết Thắng</span>
+                <button id="auth-btn" onclick="toggleAuth()" style="background: #007bff; color: white; border: none; border-radius: 3px; padding: 3px 8px; font-size: 10px; font-weight: bold; cursor: pointer;">Đăng Nhập</button>
+            </div>
             
             <p style="margin-top: 0; margin-bottom: 15px;">Trạng thái: <span id="loading-status" class="status" style="color: orange;">Đang tải...</span></p>
             
@@ -82,25 +105,30 @@
                 </label>
             </div>
 
-            <div style="background: #fff0f0; border: 1px solid #ffcccc; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-                <label style="font-weight:bold; color:#d32f2f; display:block; margin-bottom: 8px; border-bottom: 1px solid #ffcccc; padding-bottom: 4px;">⏳ Tìm sét theo khung giờ:</label>
-                
-                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
-                    <span>Từ:</span>
-                    <input type="datetime-local" id="start-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
+            <div id="premium-features" style="display: none;">
+                <div style="background: #fff0f0; border: 1px solid #ffcccc; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                    <label style="font-weight:bold; color:#d32f2f; display:block; margin-bottom: 8px; border-bottom: 1px solid #ffcccc; padding-bottom: 4px;">⏳ Tìm sét theo khung giờ:</label>
+                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
+                        <span>Từ:</span>
+                        <input type="datetime-local" id="start-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 10px;">
+                        <span>Đến:</span>
+                        <input type="datetime-local" id="end-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <button onclick="filterLightning()" style="background:#28a745; color:white; border:none; padding:6px; border-radius:3px; flex:1; cursor:pointer; font-weight:bold; font-size:11px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: 0.2s;">🔍 Tìm kiếm</button>
+                        <button onclick="clearTimeFilter()" style="background:#6c757d; color:white; border:none; padding:6px; border-radius:3px; flex:1; cursor:pointer; font-weight:bold; font-size:11px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: 0.2s;">✖ Hủy lọc</button>
+                    </div>
                 </div>
-                
-                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 10px;">
-                    <span>Đến:</span>
-                    <input type="datetime-local" id="end-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
-                </div>
-                
-                <div style="display: flex; gap: 6px;">
-                    <button onclick="filterLightning()" style="background:#28a745; color:white; border:none; padding:6px; border-radius:3px; flex:1; cursor:pointer; font-weight:bold; font-size:11px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: 0.2s;">🔍 Tìm kiếm</button>
-                    <button onclick="clearTimeFilter()" style="background:#6c757d; color:white; border:none; padding:6px; border-radius:3px; flex:1; cursor:pointer; font-weight:bold; font-size:11px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: 0.2s;">✖ Hủy lọc</button>
+
+                <div class="search-box">
+                    <label style="font-weight:bold; color:#0056b3;">🔍 Tìm kiếm nhanh thiết bị:</label>
+                    <input type="text" id="search-input" placeholder="VD: Cột 2, Lâm Sinh..." onkeyup="searchPoles()">
+                    <div id="search-results" style="display: none;"></div>
                 </div>
             </div>
-            
+
             <div class="filter-section">
                 <label for="province-filter"><b>Lọc theo tỉnh:</b></label>
                 <select id="province-filter" onchange="filterLightning(true)">
@@ -146,7 +174,7 @@
                 </select>
 
                 <label for="time-filter"><b>Lọc theo thời gian (Mặc định):</b></label>
-                <select id="time-filter" onchange="filterLightning()">
+                <select id="time-filter" onchange="handleTimeFilterChange()">
                     <option value="1800" selected>30 Phút qua</option>
                     <option value="7200">2 Giờ qua</option>
                     <option value="21600">6 Giờ qua</option>
@@ -156,15 +184,9 @@
                     <option value="604800">1 Tuần qua (Tất cả)</option>
                 </select>
             </div>
-
-            <div class="search-box">
-                <label style="font-weight:bold; color:#0056b3;">🔍 Tìm kiếm nhanh thiết bị:</label>
-                <input type="text" id="search-input" placeholder="VD: Cột 2, Lâm Sinh..." onkeyup="searchPoles()">
-                <div id="search-results" style="display: none;"></div>
-            </div>
             
             <div style="margin-top: 10px; font-size: 11px; color: #666; line-height: 1.4;">
-                <i>* Chọn Tỉnh để tự động khoanh vùng sét. Bật lớp Lưới điện ở bảng góc trái. Lưu ý: Lọc khung giờ sẽ ưu tiên hơn lọc Mặc định.</i>
+                <i>* Chọn Tỉnh để tự động khoanh vùng sét. Lọc khung giờ ưu tiên hơn lọc Mặc định.</i>
             </div>
         </div>
     </div>
@@ -177,6 +199,99 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     
     <script>
+        // ================== HỆ THỐNG BẢO MẬT & ĐĂNG NHẬP ==================
+        const ADMIN_PASS = "evn123"; // Bác có thể đổi mật khẩu ở đây
+        let isLoggedIn = localStorage.getItem('pclk_auth') === 'true';
+        let geoDataLoaded = false; // Cờ theo dõi xem đã tải lưới điện chưa
+
+        function applyAuthUI() {
+            const authBtn = document.getElementById('auth-btn');
+            const premiumDiv = document.getElementById('premium-features');
+            const layerControlDOM = document.getElementById('my-layer-control');
+            const drawControlDOM = document.querySelector('.leaflet-draw');
+
+            if (isLoggedIn) {
+                authBtn.innerText = "Đăng Xuất";
+                authBtn.style.background = "#dc3545";
+                premiumDiv.style.display = "block";
+                if(layerControlDOM) layerControlDOM.style.display = "block";
+                if(drawControlDOM) drawControlDOM.style.display = "block";
+                
+                // Mở khóa xong thì tải luôn dữ liệu lưới điện nếu chưa tải
+                if (!geoDataLoaded) { loadGeoData(); }
+            } else {
+                authBtn.innerText = "Đăng Nhập";
+                authBtn.style.background = "#007bff";
+                premiumDiv.style.display = "none";
+                if(layerControlDOM) layerControlDOM.style.display = "none";
+                if(drawControlDOM) drawControlDOM.style.display = "none";
+                
+                // Gỡ toàn bộ lưới điện khỏi bản đồ nếu đăng xuất
+                for (let key in gridLayers) {
+                    if (map.hasLayer(gridLayers[key])) { map.removeLayer(gridLayers[key]); }
+                }
+                
+                // Ép lùi về 30 phút nếu đang xem quá khứ
+                const filterVal = parseInt(document.getElementById('time-filter').value);
+                if (filterVal > 7200) {
+                    document.getElementById('time-filter').value = "1800";
+                    filterLightning();
+                }
+            }
+        }
+
+        function toggleAuth() {
+            if (isLoggedIn) {
+                if(confirm("Bạn có chắc chắn muốn đăng xuất và đóng quyền Admin?")) {
+                    isLoggedIn = false;
+                    localStorage.setItem('pclk_auth', 'false');
+                    applyAuthUI();
+                    filterLightning(); // Render lại bản đồ không có lưới điện
+                }
+            } else {
+                showModal("Tính năng này chỉ dành cho Cán bộ Quản lý Vận hành.<br>Vui lòng nhập mật khẩu để mở khóa lưới điện.");
+            }
+        }
+
+        function showModal(msg) {
+            document.getElementById('login-msg').innerHTML = msg;
+            document.getElementById('login-modal').style.display = 'flex';
+            document.getElementById('login-pass').value = '';
+            document.getElementById('login-error').style.display = 'none';
+            setTimeout(() => document.getElementById('login-pass').focus(), 100);
+        }
+
+        function closeModal() {
+            document.getElementById('login-modal').style.display = 'none';
+        }
+
+        function checkLogin() {
+            const pass = document.getElementById('login-pass').value;
+            if (pass === ADMIN_PASS) {
+                isLoggedIn = true;
+                localStorage.setItem('pclk_auth', 'true');
+                closeModal();
+                applyAuthUI();
+                filterLightning(); // Render lại bản đồ để áp dụng cột điện gần nhất
+                alert("Đăng nhập thành công! Đã mở khóa các lớp Lưới điện.");
+            } else {
+                document.getElementById('login-error').style.display = 'block';
+            }
+        }
+
+        function handleTimeFilterChange() {
+            const val = parseInt(document.getElementById('time-filter').value);
+            if (!isLoggedIn && val > 7200) {
+                // Khách chọn quá 2h -> ép về 2h và hiển thị thông báo
+                document.getElementById('time-filter').value = "7200"; 
+                showModal("Khách vãng lai chỉ được xem sét trong 2 giờ qua.<br>Vui lòng đăng nhập để xem lịch sử sét toàn thời gian!");
+                filterLightning(); // Vẫn chạy lọc nhưng theo mốc 2h vừa bị ép về
+                return;
+            }
+            filterLightning(); // Admin thì chạy bình thường
+        }
+        // =================================================================
+
         function toggleInfoPanel() {
             const panel = document.getElementById('main-info-panel');
             const icon = document.getElementById('panel-toggle-icon');
@@ -300,6 +415,7 @@
         const layerControl = L.control.layers(baseMaps, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
 
         const layerContainer = layerControl.getContainer();
+        layerContainer.id = "my-layer-control"; // ID để tương tác bật tắt quyền
         const collapseLayerBtn = document.createElement('div');
         collapseLayerBtn.className = 'layer-collapse-btn';
         collapseLayerBtn.innerHTML = '▼ Thu gọn (Các lớp Bản đồ)';
@@ -324,7 +440,6 @@
         const hoangSaMarker = L.marker([16.5000, 112.0000], { icon: islandIcon }).addTo(map).bindTooltip("QUẦN ĐẢO HOÀNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
         const truongSaMarker = L.marker([9.5000, 112.5000], { icon: islandIcon }).addTo(map).bindTooltip("QUẦN ĐẢO TRƯỜNG SA<br>(VIỆT NAM)", { permanent: true, direction: 'right', className: 'island-label', offset: [10, 0] });
 
-        
         function detectPoleName(properties) {
             if (!properties) return "Không rõ tên";
             let tenDoiTuong = ""; let soHieu = "";
@@ -339,6 +454,9 @@
         let lightningArray = []; 
 
         async function loadGeoData() {
+            // Không tải lưới điện nếu chưa đăng nhập
+            if (!isLoggedIn) return; 
+            
             for (let key in dienLucList) {
                 poleFeaturesByLayer[key] = []; 
                 try {
@@ -362,9 +480,11 @@
                     }
                 } catch (error) {}
             }
+            geoDataLoaded = true;
         }
 
         function searchPoles() {
+            if (!isLoggedIn) return;
             const query = document.getElementById('search-input').value.toLowerCase().trim();
             const resultsDiv = document.getElementById('search-results');
             resultsDiv.innerHTML = '';
@@ -418,16 +538,12 @@
                 if (db) {
                     let combinedArray = [];
                     
-                    // 1. PHỤC HỒI DỮ LIỆU CŨ: Rút sét từ 2 thư mục cũ (temp và full) nếu vẫn còn
                     if (db.temp) combinedArray = combinedArray.concat(Object.values(db.temp));
                     if (db.full) combinedArray = combinedArray.concat(Object.values(db.full));
                     
-                    // 2. NẠP DỮ LIỆU MỚI: Rút sét từ format của Bot Tele (Nằm thẳng ở ngoài)
                     for (let key in db) {
-                        // Bỏ qua thư mục temp và full để không bị lỗi
                         if (key !== 'temp' && key !== 'full' && db[key] && typeof db[key] === 'object') {
                             let item = db[key];
-                            // Nhận diện chuẩn format mới của Tele (có biến 't')
                             if (item.t !== undefined) {
                                 combinedArray.push({
                                     lat: item.lat,
@@ -442,7 +558,6 @@
                         }
                     }
                     
-                    // 3. SẮP XẾP VÀ VẼ BẢN ĐỒ: Trộn đều Mới và Cũ, xếp từ mới nhất -> cũ nhất
                     lightningArray = combinedArray.sort((a, b) => b.timestamp - a.timestamp);
                     filterLightning(true);
                 }
@@ -468,14 +583,12 @@
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
-        // HÀM RESET BỘ LỌC TÙY CHỈNH
         function clearTimeFilter() {
             document.getElementById('start-time').value = '';
             document.getElementById('end-time').value = '';
-            filterLightning(); // Tự động vẽ lại bản đồ bằng mốc mặc định
+            filterLightning(); 
         }
 
-        // TÍNH TOÁN KHOẢNG CÁCH SÉT TRONG ĐA GIÁC ĐẾN CỘT
         function filterLightning(autoZoom = false) {
             lightningLayer.clearLayers();
             const filterSeconds = parseInt(document.getElementById('time-filter').value);
@@ -486,12 +599,11 @@
             const showCG = document.getElementById('chk-cg').checked;
             const showIC = document.getElementById('chk-ic').checked;
 
-            // NẮM BẮT GIỜ TÙY CHỈNH TỪ GIAO DIỆN
             let startTimeVal = document.getElementById('start-time').value;
             let endTimeVal = document.getElementById('end-time').value;
             let customStartTS = startTimeVal ? new Date(startTimeVal).getTime() / 1000 : 0;
             let customEndTS = endTimeVal ? new Date(endTimeVal).getTime() / 1000 : Infinity;
-            let isCustomTime = startTimeVal || endTimeVal;
+            let isCustomTime = isLoggedIn && (startTimeVal || endTimeVal); // Khách không có quyền Custom Time
 
             if (autoZoom) {
                 if (selectedProvince === "all") map.setView([16.5, 105.0], 6); 
@@ -505,16 +617,18 @@
             let insidePolygonData = []; 
             let activePoleFeatures = [];
             
-            for (let key in gridLayers) {
-                if (map.hasLayer(gridLayers[key]) && poleFeaturesByLayer[key]) {
-                    activePoleFeatures = activePoleFeatures.concat(poleFeaturesByLayer[key]);
+            // Chỉ lấy lưới điện nếu đã đăng nhập và lưới đã tải
+            if (isLoggedIn) {
+                for (let key in gridLayers) {
+                    if (map.hasLayer(gridLayers[key]) && poleFeaturesByLayer[key]) {
+                        activePoleFeatures = activePoleFeatures.concat(poleFeaturesByLayer[key]);
+                    }
                 }
             }
 
             for (let i = 0; i < lightningArray.length; i++) {
                 const record = lightningArray[i];
                 
-                // KIỂM TRA KHUNG GIỜ TÙY CHỈNH
                 if (isCustomTime) {
                     if (record.timestamp > customEndTS) continue; 
                     if (record.timestamp < customStartTS) break;  
@@ -544,7 +658,8 @@
 
                     const pt = turf.point([strike.lng, strike.lat]);
                     let isInside = true;
-                    if (activePolygonGeoJSON) {
+                    // Tính năng vẽ chỉ dùng cho Admin
+                    if (isLoggedIn && activePolygonGeoJSON) {
                         if (!turf.booleanPointInPolygon(pt, activePolygonGeoJSON)) isInside = false; 
                     }
                     if (!isInside) continue; 
@@ -552,9 +667,9 @@
                     const dateObj = new Date(record.timestamp * 1000);
                     const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
 
-                    let nearestPoleName = "Chưa bật lưới điện";
+                    let nearestPoleName = isLoggedIn ? "Chưa bật lưới điện" : "Bản đồ khách (Chưa có quyền)";
                     let distSetToCot = "N/A";
-                    if (activePoleFeatures.length > 0) {
+                    if (isLoggedIn && activePoleFeatures.length > 0) {
                         const poleCollection = turf.featureCollection(activePoleFeatures);
                         const nearestPoleFeature = turf.nearestPoint(pt, poleCollection);
                         nearestPoleName = detectPoleName(nearestPoleFeature.properties);
@@ -573,7 +688,6 @@
                     else { cgCount++; }
                     let colorCode = strike.loaiset.includes("đất") ? "red" : "#ff8c00";
 
-                    // HIỂN THỊ NGUỒN TRÊN POPUP
                     const popupHTML = `
                         <div style="font-family: Arial; font-size: 13px; width: 230px; line-height: 1.5;">
                             <b style="color:${colorCode}; font-size:14px;">⚡ THÔNG TIN SÉT</b><hr style="margin:5px 0;">
@@ -586,7 +700,7 @@
                             
                             <hr style="margin:6px 0; border: 0; border-top: 1px dashed #ccc;">
                             <div style="text-align: center; margin-top: 5px; margin-bottom: 2px;">
-                                <a href="https://www.google.com/maps?q=${strike.lat},${strike.lng}" target="_blank" style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; border-radius: 4px; display: inline-block; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                <a href="https://www.google.com/maps/search/?api=1&query=...{strike.lat},${strike.lng}" target="_blank" style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; border-radius: 4px; display: inline-block; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
                                     📍 Mở Google Maps
                                 </a>
                             </div>
@@ -603,8 +717,8 @@
             document.getElementById('ic-count').innerText = icCount;
             currentExportData = insidePolygonData;
 
-            // HIỂN THỊ NGUỒN TRÊN BẢNG BÁO CÁO
-            if (activePolygonLayer) {
+            // HIỂN THỊ NGUỒN TRÊN BẢNG BÁO CÁO (Chỉ Admin)
+            if (isLoggedIn && activePolygonLayer) {
                 let tableRowsHtml = "";
                 insidePolygonData.forEach((item) => {
                     let intensityColor = (item.giatri === "Không có DL") ? "#777" : "#d32f2f";
@@ -650,7 +764,10 @@
             }
         }
 
-        loadGeoData(); fetchLightningData(); setInterval(fetchLightningData, 450000); 
+        // CHẠY NGAY KHI MỞ TRANG ĐỂ KIỂM TRA PHÂN QUYỀN
+        applyAuthUI();
+        fetchLightningData(); 
+        setInterval(fetchLightningData, 450000); 
     </script>
 </body>
 </html>
