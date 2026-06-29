@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #map { width: 100%; height: 100vh; }
@@ -385,7 +385,7 @@
 
         const dienLucList = {
             " ĐL Văn Bàn": "vanban.json", " ĐL Lào Cai": "laocai.json", " ĐL SaPa": "sapa.json",
-            " ĐL Bát Xát": "batxat.json", " ĐL Bắc Hà": "bacha.json", " ĐL Bảo Thắng": "baothang.json",
+            " ĐL Bát Xát": "batxat.json", " ĐL Bắc Hà": "bacha.enc", " ĐL Bảo Thắng": "baothang.json",
             " ĐL Bảo Yên": "baoyen.json", " ĐL Mường Khương": "muongkhuong.json", " ĐL Yên Bái": "yenbai.json",
             " ĐL Trấn Yên": "tranyen.json", " ĐL Văn Yên": "vanyen.json", " ĐL Lục Yên": "lucyen.json",
             " ĐL Nghĩa Lộ": "nghialo.json", " Cao Thế LC": "caothelc.json", " Cao Thế YB": "caotheyb.json"
@@ -461,7 +461,28 @@
                 try {
                     const response = await fetch(`./${dienLucList[key]}?t=${new Date().getTime()}`);
                     if (response.ok) {
-                        const data = await response.json();
+                        // 1. Tải file mã hóa về dưới dạng Text lộn xộn
+                        const encryptedText = await response.text(); 
+                        
+                        // 2. GIẢI MÃ bằng mật khẩu ADMIN_PASS (pclk@2026)
+                        let decryptedText;
+                        try {
+                            const bytes = CryptoJS.AES.decrypt(encryptedText, ADMIN_PASS);
+                            decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+                        } catch (e) {
+                            console.error(`Lỗi giải mã file ${key}. Có thể sai mật khẩu lúc mã hóa!`);
+                            continue; // Bỏ qua file bị lỗi, chạy tiếp file khác
+                        }
+
+                        if (!decryptedText) {
+                            console.error(`Giải mã thất bại file ${key} (Mật khẩu không khớp)`);
+                            continue;
+                        }
+
+                        // 3. Ép text đã giải mã trở lại thành dạng chuẩn JSON
+                        const data = JSON.parse(decryptedText);
+
+                        // 4. Vẽ lên bản đồ như bình thường
                         let poles = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
                         poleFeaturesByLayer[key].push(...poles);
 
@@ -477,7 +498,9 @@
                             }
                         }).addTo(gridLayers[key]);
                     }
-                } catch (error) {}
+                } catch (error) {
+                    console.warn(`Không tìm thấy file ${dienLucList[key]}`);
+                }
             }
             geoDataLoaded = true;
         }
