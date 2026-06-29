@@ -69,9 +69,16 @@
     <div id="login-modal" class="modal-overlay">
         <div class="modal-content">
             <h3 style="color:#d32f2f; margin-top:0;">🔒 Yêu Cầu Đăng Nhập</h3>
-            <p id="login-msg" style="font-size: 13px; color: #555; line-height: 1.4;">Tính năng này chỉ dành cho nội bộ.<br>Vui lòng nhập mật khẩu để mở khóa.</p>
-            <input type="password" id="login-pass" placeholder="Nhập mật khẩu..." onkeypress="if(event.key === 'Enter') checkLogin()">
-            <p id="login-error" style="color: red; font-size: 11px; margin: 0 0 10px 0; display: none;">Sai mật khẩu!</p>
+            <p id="login-msg" style="font-size: 13px; color: #555; line-height: 1.4;">Tính năng này chỉ dành cho nội bộ.<br>Vui lòng nhập tài khoản và mật khẩu.</p>
+            
+            <!-- Ô nhập Tài khoản (Thêm mới) -->
+            <input type="text" id="login-user" placeholder="Tên đăng nhập..." style="margin-bottom: 5px;" onkeypress="if(event.key === 'Enter') document.getElementById('login-pass').focus()">
+            
+            <!-- Ô nhập Mật khẩu (Chỉnh lại lề) -->
+            <input type="password" id="login-pass" placeholder="Mật khẩu..." style="margin-top: 5px;" onkeypress="if(event.key === 'Enter') checkLogin()">
+            
+            <p id="login-error" style="color: red; font-size: 11px; margin: 5px 0 10px 0; display: none;">Sai tài khoản hoặc mật khẩu!</p>
+            
             <div style="display: flex; gap: 10px; justify-content: center;">
                 <button onclick="checkLogin()" style="background: #007bff; color: white;">Mở khóa</button>
                 <button onclick="closeModal()" style="background: #e0e0e0; color: #333;">Hủy bỏ</button>
