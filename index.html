@@ -206,8 +206,10 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     
     <script>
-        // ================== HỆ THỐNG BẢO MẬT & ĐĂNG NHẬP ==================
-        const ADMIN_PASS = "evn123"; // Bác có thể đổi mật khẩu ở đây
+       // ================== HỆ THỐNG BẢO MẬT & ĐĂNG NHẬP ==================
+        const ADMIN_USER = "admin";       // Tên tài khoản của bác
+        const ADMIN_PASS = "pclk@2026";   // Mật khẩu mới của bác
+
         let isLoggedIn = localStorage.getItem('pclk_auth') === 'true';
         let geoDataLoaded = false; // Cờ theo dõi xem đã tải lưới điện chưa
 
@@ -224,7 +226,6 @@
                 if(layerControlDOM) layerControlDOM.style.display = "block";
                 if(drawControlDOM) drawControlDOM.style.display = "block";
                 
-                // Mở khóa xong thì tải luôn dữ liệu lưới điện nếu chưa tải
                 if (!geoDataLoaded) { loadGeoData(); }
             } else {
                 authBtn.innerText = "Đăng Nhập";
@@ -233,12 +234,10 @@
                 if(layerControlDOM) layerControlDOM.style.display = "none";
                 if(drawControlDOM) drawControlDOM.style.display = "none";
                 
-                // Gỡ toàn bộ lưới điện khỏi bản đồ nếu đăng xuất
                 for (let key in gridLayers) {
                     if (map.hasLayer(gridLayers[key])) { map.removeLayer(gridLayers[key]); }
                 }
                 
-                // Ép lùi về 30 phút nếu đang xem quá khứ
                 const filterVal = parseInt(document.getElementById('time-filter').value);
                 if (filterVal > 7200) {
                     document.getElementById('time-filter').value = "1800";
@@ -253,19 +252,21 @@
                     isLoggedIn = false;
                     localStorage.setItem('pclk_auth', 'false');
                     applyAuthUI();
-                    filterLightning(); // Render lại bản đồ không có lưới điện
+                    filterLightning(); 
                 }
             } else {
-                showModal("Tính năng này chỉ dành cho Cán bộ Quản lý Vận hành.<br>Vui lòng nhập mật khẩu để mở khóa lưới điện.");
+                showModal("Tính năng này chỉ dành cho Cán bộ Quản lý Vận hành.<br>Vui lòng nhập tài khoản và mật khẩu để mở khóa lưới điện.");
             }
         }
 
         function showModal(msg) {
             document.getElementById('login-msg').innerHTML = msg;
             document.getElementById('login-modal').style.display = 'flex';
-            document.getElementById('login-pass').value = '';
+            document.getElementById('login-user').value = ''; // Xóa sạch ô tài khoản
+            document.getElementById('login-pass').value = ''; // Xóa sạch ô mật khẩu
             document.getElementById('login-error').style.display = 'none';
-            setTimeout(() => document.getElementById('login-pass').focus(), 100);
+            // Tự động focus con trỏ nhấp nháy vào ô Tài khoản đầu tiên
+            setTimeout(() => document.getElementById('login-user').focus(), 100);
         }
 
         function closeModal() {
@@ -273,31 +274,22 @@
         }
 
         function checkLogin() {
+            const user = document.getElementById('login-user').value.trim(); // Lấy giá trị tài khoản, bỏ dấu cách thừa
             const pass = document.getElementById('login-pass').value;
-            if (pass === ADMIN_PASS) {
+
+            // Kiểm tra xem CẢ 2 ĐIỀU KIỆN (Tài khoản và Mật khẩu) có khớp không
+            if (user === ADMIN_USER && pass === ADMIN_PASS) {
                 isLoggedIn = true;
                 localStorage.setItem('pclk_auth', 'true');
                 closeModal();
                 applyAuthUI();
-                filterLightning(); // Render lại bản đồ để áp dụng cột điện gần nhất
+                filterLightning(); 
                 alert("Đăng nhập thành công! Đã mở khóa các lớp Lưới điện.");
             } else {
                 document.getElementById('login-error').style.display = 'block';
+                document.getElementById('login-error').innerText = "Sai tài khoản hoặc mật khẩu!";
             }
         }
-
-        function handleTimeFilterChange() {
-            const val = parseInt(document.getElementById('time-filter').value);
-            if (!isLoggedIn && val > 7200) {
-                // Khách chọn quá 2h -> ép về 2h và hiển thị thông báo
-                document.getElementById('time-filter').value = "7200"; 
-                showModal("Khách vãng lai chỉ được xem sét trong 2 giờ qua.<br>Vui lòng đăng nhập để xem lịch sử sét toàn thời gian!");
-                filterLightning(); // Vẫn chạy lọc nhưng theo mốc 2h vừa bị ép về
-                return;
-            }
-            filterLightning(); // Admin thì chạy bình thường
-        }
-        // =================================================================
 
         function toggleInfoPanel() {
             const panel = document.getElementById('main-info-panel');
