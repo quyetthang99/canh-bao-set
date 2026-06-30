@@ -401,7 +401,7 @@
         function updateLabelsVisibility() {
             if (!isLoggedIn) return;
             const currentZoom = map.getZoom();
-            const ZOOM_THRESHOLD = 15; // Mốc Zoom: Mức 15 trở lên mới hiện chữ
+            const ZOOM_THRESHOLD = 8; // Mốc Zoom: Mức 15 trở lên mới hiện chữ
 
             for (let key in gridLayers) {
                 if (map.hasLayer(gridLayers[key]) && labelGroups[key]) {
