@@ -400,8 +400,6 @@
         }
   
 let p = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
-for (const k in f.properties) if(f.properties[k] !== null) p += `<b>${k}:</b> ${f.properties[k]}<br>`;
-
 p += `<hr style="margin:6px 0; border: 0; border-top: 1px dashed #ccc;">
       <div style="text-align: center; margin-top: 5px; margin-bottom: 2px;">
           <a href="https://www.google.com/maps/search/?api=1&query=${lat}%20${lng}" target="_blank" 
@@ -411,7 +409,7 @@ p += `<hr style="margin:6px 0; border: 0; border-top: 1px dashed #ccc;">
              📍 Mở Google Maps
           </a>
       </div>`;
-      
+for (const k in f.properties) if(f.properties[k] !== null) p += `<b>${k}:</b> ${f.properties[k]}<br>`;    
 layer.bindPopup(p + "</div>");
         
         layer.bindPopup(p + "</div>");
