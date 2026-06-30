@@ -905,7 +905,13 @@
                     if (!isInside) continue; 
 
                     const dateObj = new Date(record.timestamp * 1000);
-                    const timeString = dateObj.toLocaleTimeString('vi-VN') + " - " + dateObj.toLocaleDateString('vi-VN');
+                    // Sử dụng tùy chọn timeZone để ép buộc hiển thị theo giờ Việt Nam (UTC+7)
+                    const options = { 
+                          timeZone: 'Asia/Ho_Chi_Minh',
+                          hour: '2-digit', minute: '2-digit', second: '2-digit',
+                          day: '2-digit', month: '2-digit', year: 'numeric'
+                         };
+                    const timeString = dateObj.toLocaleString('vi-VN', options);
 
                     let nearestPoleName = isLoggedIn ? "Chưa bật lưới điện" : "Bản đồ khách (Chưa có quyền)";
                     let distSetToCot = "N/A";
