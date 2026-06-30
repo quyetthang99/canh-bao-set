@@ -60,6 +60,21 @@
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
         .modal-content { background: white; padding: 25px; border-radius: 8px; width: 300px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); animation: slideDown 0.3s ease; }
         @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        /* CSS CHO NHÃN TÊN CỘT ĐIỆN */
+        .custom-label-container { background: transparent; border: none; box-shadow: none; }
+        .pole-name-label {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #17a2b8;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 11px;
+            font-weight: bold;
+            color: #0056b3;
+            white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            pointer-events: none; /* Không chặn click vào cột */
+        }
     </style>
 </head>
 <body>
@@ -213,24 +228,25 @@
         const loginTime = localStorage.getItem('pclk_login_time');
         const currentTime = Date.now();
 
-        // Kiểm tra xem đã đăng nhập chưa và thời gian có quá 2 tiếng (7.200.000 mili-giây) không
         if (authStatus === 'true' && loginTime) {
             if (currentTime - parseInt(loginTime) > 7200000) {
-                // Quá hạn 2h -> Tự động xóa phiên đăng nhập
                 localStorage.removeItem('pclk_auth');
                 localStorage.removeItem('pclk_role');
                 localStorage.removeItem('pclk_login_time');
             } else {
-                // Còn hạn -> Cho phép giữ đăng nhập
                 isLoggedIn = true;
                 userRole = localStorage.getItem('pclk_role') || '';
             }
         }
 
-        let layerControl; // Khung menu bản đồ
-        let loadedLayers = {}; // Đánh dấu lớp nào đã kéo từ Firebase về
+        let layerControl; 
+        let loadedLayers = {}; 
         
-        // 1. LINK DỮ LIỆU LƯỚI ĐIỆN TỪ FIREBASE "bacha-d8448"
+        // --- CÁC BIẾN MỚI CHO TÍNH NĂNG NHÃN TÊN ---
+        let showLabels = false; 
+        const labelToggleLayer = L.layerGroup(); 
+        const labelGroups = {}; // Chứa nhãn tên của từng Điện lực
+        
         const dienLucList = {
             " ĐL Văn Bàn": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/vanban.json",
             " ĐL Lào Cai": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/laocai.json",
@@ -350,11 +366,14 @@
         function buildLayerControl() {
             if (layerControl) { map.removeControl(layerControl); }
 
+            // Thêm lớp Sét đầu tiên
             let activeOverlays = { "⚡ Cảnh báo Sét đánh": lightningLayer };
 
             if (isLoggedIn) {
+                // Thêm lớp Nhãn tên nằm ngay dưới Sét
+                activeOverlays["🏷️ Hiển thị tên thiết bị"] = labelToggleLayer;
+                
                 for (let key in dienLucList) {
-                    // Cấp menu nếu là Admin ('all') hoặc khớp đúng với tên quyền (' ĐL Văn Bàn')
                     if (userRole === 'all' || userRole === key) {
                         activeOverlays[key] = gridLayers[key];
                     }
@@ -379,11 +398,31 @@
             layerContainer.style.display = isLoggedIn ? "block" : "none";
         }
 
-        // 3. LOGIC TẢI LƯỚI ĐIỆN SIÊU TỐC TỪ FIREBASE (LAZY LOAD)
+        // HÀM LẤY SỐ HIỆU (Ưu tiên số hiệu, không có lấy tên)
+        function getShortLabel(properties) {
+            if (!properties) return "Chưa có tên";
+            for (let key of ['soHieu', 'SoHieu', 'SO_HIEU']) { 
+                if (properties[key] && properties[key].trim() !== "") return properties[key]; 
+            }
+            return detectPoleName(properties); // Nếu không có số hiệu thì dùng tên đối tượng
+        }
+
+        // 3. LOGIC TẢI LƯỚI ĐIỆN SIÊU TỐC TỪ FIREBASE VÀ HIỂN THỊ NHÃN
         let poleFeaturesByLayer = {}; 
         
         map.on('overlayadd', async function(e) {
             const layerName = e.name;
+            
+            // Xử lý khi bật nút Hiện tên thiết bị
+            if (layerName === "🏷️ Hiển thị tên thiết bị") {
+                showLabels = true;
+                for (let key in gridLayers) {
+                    if (map.hasLayer(gridLayers[key]) && labelGroups[key]) {
+                        map.addLayer(labelGroups[key]);
+                    }
+                }
+                return;
+            }
             
             if (dienLucList[layerName] && !loadedLayers[layerName]) {
                 if (!isLoggedIn) {
@@ -405,6 +444,9 @@
                         poleFeaturesByLayer[layerName] = [];
                         let poles = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
                         poleFeaturesByLayer[layerName].push(...poles);
+                        
+                        // Khởi tạo nhóm chứa Nhãn tên cho Điện lực này
+                        labelGroups[layerName] = L.layerGroup();
 
                         L.geoJSON(data, {
                             style: function (f) { return (f.geometry.type === "LineString" || f.geometry.type === "MultiLineString") ? { color: "#0056b3", weight: 3, opacity: 0.8 } : {}; },
@@ -412,7 +454,6 @@
                             onEachFeature: function (f, layer) {
                                 if (f.properties) {
                                     let lat, lng;
-                                    // Lấy tọa độ (phòng trường hợp là Point hoặc MultiPoint)
                                     if (f.geometry.type === "Point") {
                                         lng = f.geometry.coordinates[0];
                                         lat = f.geometry.coordinates[1];
@@ -420,17 +461,33 @@
                                         lng = f.geometry.coordinates[0][0];
                                         lat = f.geometry.coordinates[0][1];
                                     }
+                                    
+                                    // Tạo Nhãn Tên
+                                    if (lat && lng) {
+                                        let shortName = getShortLabel(f.properties);
+                                        let labelMarker = L.marker([lat, lng], {
+                                            icon: L.divIcon({
+                                                html: `<div class="pole-name-label">${shortName}</div>`,
+                                                className: 'custom-label-container',
+                                                iconSize: [0, 0],
+                                                iconAnchor: [-10, 10] // Căn lề dịch sang phải và xuống dưới cột một chút
+                                            }),
+                                            interactive: false // Bấm xuyên qua nhãn để chọn cột
+                                        });
+                                        labelGroups[layerName].addLayer(labelMarker);
+                                    }
                                 
                                     let p = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
                                     p += `<hr style="margin:6px 0; border: 0; border-top: 1px dashed #ccc;">
                                           <div style="text-align: center; margin-top: 5px; margin-bottom: 2px;">
-                                              <a href="https://www.google.com/maps/search/?api=1&query=${lat}%20${lng}" target="_blank" 
+                                              <a href="https://www.google.com/maps/search/?api=1&query=$${lat}%20${lng}" target="_blank" 
                                                  style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; 
                                                  padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; 
-                                                 border-radius: 4px; display: inline-block; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                                                📍 Mở Google Maps
+                                                 border-radius: 4px; display: block; width: 90%; margin: 0 auto; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                                 📍 Đường đến cột (Google Maps)
                                               </a>
                                           </div>`;
+                                    
                                     for (const k in f.properties) if(f.properties[k] !== null) p += `<b>${k}:</b> ${f.properties[k]}<br>`;    
                                     layer.bindPopup(p + "</div>");
                                 }
@@ -441,6 +498,10 @@
                         statusLabel.innerText = "Hoạt động tốt";
                         statusLabel.style.color = "green";
                         
+                        // Nếu Nút Hiện Tên đang bật, thì vừa tải xong lưới là hiện tên luôn
+                        if (showLabels && labelGroups[layerName]) {
+                            map.addLayer(labelGroups[layerName]);
+                        }
                         searchPoles(); 
                     } else { throw new Error("Lỗi mạng"); }
                 } catch (error) {
@@ -449,11 +510,37 @@
                     statusLabel.style.color = "red";
                     map.removeLayer(e.layer); 
                 }
+            } else if (dienLucList[layerName] && loadedLayers[layerName]) {
+                // Nếu lưới đã tải từ trước và đang được bật lại
+                if (showLabels && labelGroups[layerName]) {
+                    map.addLayer(labelGroups[layerName]);
+                }
             }
             filterLightning(); 
         });
 
-        map.on('overlayremove', function() { filterLightning(); searchPoles(); });
+        map.on('overlayremove', function(e) {
+            const layerName = e.name;
+            
+            // Nếu tắt nút Hiện tên thiết bị
+            if (layerName === "Hiển thị tên thiết bị") {
+                showLabels = false;
+                for (let key in labelGroups) {
+                    if (map.hasLayer(labelGroups[key])) { map.removeLayer(labelGroups[key]); }
+                }
+                return;
+            }
+            
+            // Nếu tắt lớp lưới điện thì cũng tắt luôn nhãn của nó
+            if (dienLucList[layerName]) {
+                if (labelGroups[layerName] && map.hasLayer(labelGroups[layerName])) {
+                    map.removeLayer(labelGroups[layerName]);
+                }
+            }
+            
+            filterLightning(); 
+            searchPoles(); 
+        });
 
         // ICON SÉT VÀ CÁC MỐC HẢI ĐẢO / THỦ ĐÔ
         const lightningIconRed = L.divIcon({ html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>', className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12] });
@@ -508,9 +595,12 @@
                 premiumDiv.style.display = "none";
                 if(drawControlDOM) drawControlDOM.style.display = "none";
                 
+                // Gỡ các lớp hiện tại khi đăng xuất
                 for (let key in gridLayers) {
                     if (map.hasLayer(gridLayers[key])) { map.removeLayer(gridLayers[key]); }
+                    if (labelGroups[key] && map.hasLayer(labelGroups[key])) { map.removeLayer(labelGroups[key]); }
                 }
+                if (map.hasLayer(labelToggleLayer)) { map.removeLayer(labelToggleLayer); showLabels = false; }
                 
                 const filterVal = parseInt(document.getElementById('time-filter').value);
                 if (filterVal > 7200) {
@@ -892,8 +982,7 @@
             }
         }
 
-        // CHẠY NGAY KHI MỞ TRANG 
-        buildLayerControl();
+        // CHẠY NGAY KHI MỞ TRANG ĐỂ KIỂM TRA PHÂN QUYỀN
         applyAuthUI();
         fetchLightningData(); 
         setInterval(fetchLightningData, 450000); 
