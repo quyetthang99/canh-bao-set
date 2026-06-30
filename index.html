@@ -61,19 +61,19 @@
         .modal-content { background: white; padding: 25px; border-radius: 8px; width: 300px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); animation: slideDown 0.3s ease; }
         @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         
-        /* CSS CHO NHÃN TÊN CỘT ĐIỆN */
+        /* CSS CHO NHÃN TÊN CỘT ĐIỆN ĐÃ ĐƯỢC LÀM GỌN NHẸ HƠN */
         .custom-label-container { background: transparent; border: none; box-shadow: none; }
         .pole-name-label {
             background: rgba(255, 255, 255, 0.9);
             border: 1px solid #17a2b8;
-            border-radius: 4px;
-            padding: 2px 6px;
-            font-size: 11px;
+            border-radius: 3px;
+            padding: 2px 4px;
+            font-size: 10px; /* Nhỏ gọn hơn để đỡ rối */
             font-weight: bold;
             color: #0056b3;
             white-space: nowrap;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            pointer-events: none; /* Không chặn click vào cột */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            pointer-events: none; /* Tránh cản trở click vào điểm cột */
         }
     </style>
 </head>
@@ -242,10 +242,10 @@
         let layerControl; 
         let loadedLayers = {}; 
         
-        // --- CÁC BIẾN MỚI CHO TÍNH NĂNG NHÃN TÊN ---
-        let showLabels = false; 
-        const labelToggleLayer = L.layerGroup(); 
-        const labelGroups = {}; // Chứa nhãn tên của từng Điện lực
+        // --- CÁC BIẾN CHO TÍNH NĂNG NHÃN TÊN ---
+        let showLabels = false; // Mặc định tắt
+        const labelToggleLayer = L.layerGroup(); // Lớp mồi để tạo nút Menu
+        const labelGroups = {}; // Kho chứa các cụm nhãn tên của từng Điện lực
         
         const dienLucList = {
             " ĐL Văn Bàn": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/vanban.json",
@@ -366,12 +366,11 @@
         function buildLayerControl() {
             if (layerControl) { map.removeControl(layerControl); }
 
-            // Thêm lớp Sét đầu tiên
             let activeOverlays = { "⚡ Cảnh báo Sét đánh": lightningLayer };
 
             if (isLoggedIn) {
-                // Thêm lớp Nhãn tên nằm ngay dưới Sét
-                activeOverlays["🏷️ Hiển thị tên thiết bị"] = labelToggleLayer;
+                // Thêm lớp Nút bật/tắt Tên thiết bị (chèn vào ngay sau Sét)
+                activeOverlays[" Hiển thị tên thiết bị"] = labelToggleLayer;
                 
                 for (let key in dienLucList) {
                     if (userRole === 'all' || userRole === key) {
@@ -398,29 +397,59 @@
             layerContainer.style.display = isLoggedIn ? "block" : "none";
         }
 
-        // HÀM LẤY SỐ HIỆU (Ưu tiên số hiệu, không có lấy tên)
+        // ================= HỆ THỐNG KIỂM SOÁT HIỂN THỊ NHÃN TÊN (THÔNG MINH) =================
+        function updateLabelsVisibility() {
+            if (!isLoggedIn) return;
+            const currentZoom = map.getZoom();
+            const ZOOM_THRESHOLD = 15; // Mốc Zoom: Mức 15 trở lên mới hiện chữ
+
+            for (let key in gridLayers) {
+                if (map.hasLayer(gridLayers[key]) && labelGroups[key]) {
+                    // Cột ĐANG BẬT, kiểm tra điều kiện Zoom và Công tắc Hiện tên
+                    if (showLabels && currentZoom >= ZOOM_THRESHOLD) {
+                        if (!map.hasLayer(labelGroups[key])) { map.addLayer(labelGroups[key]); }
+                    } else {
+                        if (map.hasLayer(labelGroups[key])) { map.removeLayer(labelGroups[key]); }
+                    }
+                }
+            }
+            
+            // Đổi chữ cảnh báo cho sếp biết
+            const statusLabel = document.getElementById('loading-status');
+            if (showLabels) {
+                if (currentZoom < ZOOM_THRESHOLD) {
+                    statusLabel.innerText = "Đã bật nhãn (Hãy phóng to để xem)";
+                    statusLabel.style.color = "#ff8c00";
+                } else {
+                    statusLabel.innerText = "Hoạt động tốt";
+                    statusLabel.style.color = "green";
+                }
+            }
+        }
+
+        // Bắt sự kiện người dùng Cuộn chuột (Zoom in/out) để tự động bật tắt nhãn
+        map.on('zoomend', function() {
+            updateLabelsVisibility();
+        });
+
         function getShortLabel(properties) {
             if (!properties) return "Chưa có tên";
             for (let key of ['soHieu', 'SoHieu', 'SO_HIEU']) { 
                 if (properties[key] && properties[key].trim() !== "") return properties[key]; 
             }
-            return detectPoleName(properties); // Nếu không có số hiệu thì dùng tên đối tượng
+            return detectPoleName(properties); 
         }
 
-        // 3. LOGIC TẢI LƯỚI ĐIỆN SIÊU TỐC TỪ FIREBASE VÀ HIỂN THỊ NHÃN
+        // 3. LOGIC TẢI LƯỚI ĐIỆN VÀ GẮN NHÃN
         let poleFeaturesByLayer = {}; 
         
         map.on('overlayadd', async function(e) {
             const layerName = e.name;
             
-            // Xử lý khi bật nút Hiện tên thiết bị
-            if (layerName === "🏷️ Hiển thị tên thiết bị") {
+            // Xử lý khi Tích chọn "Hiện tên thiết bị"
+            if (layerName === "Hiển thị tên thiết bị") {
                 showLabels = true;
-                for (let key in gridLayers) {
-                    if (map.hasLayer(gridLayers[key]) && labelGroups[key]) {
-                        map.addLayer(labelGroups[key]);
-                    }
-                }
+                updateLabelsVisibility();
                 return;
             }
             
@@ -445,7 +474,7 @@
                         let poles = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
                         poleFeaturesByLayer[layerName].push(...poles);
                         
-                        // Khởi tạo nhóm chứa Nhãn tên cho Điện lực này
+                        // Tạo cụm chứa Nhãn tên cho Điện lực này
                         labelGroups[layerName] = L.layerGroup();
 
                         L.geoJSON(data, {
@@ -462,7 +491,7 @@
                                         lat = f.geometry.coordinates[0][1];
                                     }
                                     
-                                    // Tạo Nhãn Tên
+                                    // Tạo Nhãn Tên và đưa vào Kho chứa
                                     if (lat && lng) {
                                         let shortName = getShortLabel(f.properties);
                                         let labelMarker = L.marker([lat, lng], {
@@ -470,17 +499,17 @@
                                                 html: `<div class="pole-name-label">${shortName}</div>`,
                                                 className: 'custom-label-container',
                                                 iconSize: [0, 0],
-                                                iconAnchor: [-10, 10] // Căn lề dịch sang phải và xuống dưới cột một chút
+                                                iconAnchor: [-10, 10] 
                                             }),
-                                            interactive: false // Bấm xuyên qua nhãn để chọn cột
+                                            interactive: false 
                                         });
-                                        labelGroups[layerName].addLayer(labelMarker);
+                                        labelGroups[layerName].addLayer(labelMarker); // ĐƯA VÀO KHO, CHƯA HIỆN LÊN MAP
                                     }
                                 
                                     let p = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
                                     p += `<hr style="margin:6px 0; border: 0; border-top: 1px dashed #ccc;">
                                           <div style="text-align: center; margin-top: 5px; margin-bottom: 2px;">
-                                              <a href="https://www.google.com/maps/search/?api=1&query=$${lat}%20${lng}" target="_blank" 
+                                              <a href="https://www.google.com/maps/search/?api=1&query=${lat}%20${lng}" target="_blank" 
                                                  style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; 
                                                  padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; 
                                                  border-radius: 4px; display: block; width: 90%; margin: 0 auto; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
@@ -498,10 +527,8 @@
                         statusLabel.innerText = "Hoạt động tốt";
                         statusLabel.style.color = "green";
                         
-                        // Nếu Nút Hiện Tên đang bật, thì vừa tải xong lưới là hiện tên luôn
-                        if (showLabels && labelGroups[layerName]) {
-                            map.addLayer(labelGroups[layerName]);
-                        }
+                        // Quét kiểm tra hiển thị nhãn sau khi đã tải xong
+                        updateLabelsVisibility(); 
                         searchPoles(); 
                     } else { throw new Error("Lỗi mạng"); }
                 } catch (error) {
@@ -511,10 +538,8 @@
                     map.removeLayer(e.layer); 
                 }
             } else if (dienLucList[layerName] && loadedLayers[layerName]) {
-                // Nếu lưới đã tải từ trước và đang được bật lại
-                if (showLabels && labelGroups[layerName]) {
-                    map.addLayer(labelGroups[layerName]);
-                }
+                // Quét hiển thị nhãn nếu lớp lưới điện đã tải từ trước được bật lại
+                updateLabelsVisibility();
             }
             filterLightning(); 
         });
@@ -522,16 +547,17 @@
         map.on('overlayremove', function(e) {
             const layerName = e.name;
             
-            // Nếu tắt nút Hiện tên thiết bị
+            // Xử lý khi Bỏ Tích "Hiện tên thiết bị"
             if (layerName === "Hiển thị tên thiết bị") {
                 showLabels = false;
-                for (let key in labelGroups) {
-                    if (map.hasLayer(labelGroups[key])) { map.removeLayer(labelGroups[key]); }
-                }
+                updateLabelsVisibility();
+                const statusLabel = document.getElementById('loading-status');
+                statusLabel.innerText = "Hoạt động tốt";
+                statusLabel.style.color = "green";
                 return;
             }
             
-            // Nếu tắt lớp lưới điện thì cũng tắt luôn nhãn của nó
+            // Tắt lưới điện thì cất nhãn của nó đi
             if (dienLucList[layerName]) {
                 if (labelGroups[layerName] && map.hasLayer(labelGroups[layerName])) {
                     map.removeLayer(labelGroups[layerName]);
