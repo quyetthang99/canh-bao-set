@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #map { width: 100%; height: 100vh; }
@@ -60,8 +60,6 @@
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
         .modal-content { background: white; padding: 25px; border-radius: 8px; width: 300px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); animation: slideDown 0.3s ease; }
         @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .modal-content input { width: 90%; padding: 10px; margin: 15px 0; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; text-align: center; font-weight: bold; }
-        .modal-content button { padding: 8px 15px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; transition: 0.2s;}
     </style>
 </head>
 <body>
@@ -71,17 +69,15 @@
             <h3 style="color:#d32f2f; margin-top:0;">🔒 Yêu Cầu Đăng Nhập</h3>
             <p id="login-msg" style="font-size: 13px; color: #555; line-height: 1.4;">Tính năng này chỉ dành cho nội bộ.<br>Vui lòng nhập tài khoản và mật khẩu.</p>
             
-            <!-- Ô nhập Tài khoản (Thêm mới) -->
-            <input type="text" id="login-user" placeholder="Tên đăng nhập..." style="margin-bottom: 5px;" onkeypress="if(event.key === 'Enter') document.getElementById('login-pass').focus()">
+            <input type="text" id="login-user" placeholder="Tên đăng nhập..." style="width: 90%; padding: 10px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 4px; font-weight: bold; text-align: center;" onkeypress="if(event.key === 'Enter') document.getElementById('login-pass').focus()">
             
-            <!-- Ô nhập Mật khẩu (Chỉnh lại lề) -->
-            <input type="password" id="login-pass" placeholder="Mật khẩu..." style="margin-top: 5px;" onkeypress="if(event.key === 'Enter') checkLogin()">
+            <input type="password" id="login-pass" placeholder="Mật khẩu..." style="width: 90%; padding: 10px; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; font-weight: bold; text-align: center;" onkeypress="if(event.key === 'Enter') checkLogin()">
             
-            <p id="login-error" style="color: red; font-size: 11px; margin: 5px 0 10px 0; display: none;">Sai tài khoản hoặc mật khẩu!</p>
+            <p id="login-error" style="color: red; font-size: 11px; margin: 0 0 10px 0; display: none; font-weight: bold;">Sai tài khoản hoặc mật khẩu!</p>
             
             <div style="display: flex; gap: 10px; justify-content: center;">
-                <button onclick="checkLogin()" style="background: #007bff; color: white;">Mở khóa</button>
-                <button onclick="closeModal()" style="background: #e0e0e0; color: #333;">Hủy bỏ</button>
+                <button onclick="checkLogin()" style="background: #007bff; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Mở khóa</button>
+                <button onclick="closeModal()" style="background: #e0e0e0; color: #333; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Hủy bỏ</button>
             </div>
         </div>
     </div>
@@ -95,7 +91,7 @@
         <div id="panel-content">
             <div class="author-credit">
                 <span>Design by Quyết Thắng</span>
-                <button id="auth-btn" onclick="toggleAuth()" style="background: #007bff; color: white; border: none; border-radius: 3px; padding: 3px 8px; font-size: 10px; font-weight: bold; cursor: pointer;">Đăng Nhập</button>
+                <button id="auth-btn" onclick="toggleAuth()" style="background: #007bff; color: white; border: none; border-radius: 3px; padding: 4px 8px; font-size: 11px; font-weight: bold; cursor: pointer;">Đăng Nhập</button>
             </div>
             
             <p style="margin-top: 0; margin-bottom: 15px;">Trạng thái: <span id="loading-status" class="status" style="color: orange;">Đang tải...</span></p>
@@ -206,97 +202,30 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     
     <script>
-       // ================== HỆ THỐNG BẢO MẬT & ĐĂNG NHẬP ==================
-        const ADMIN_USER = "admin";       // Tên tài khoản của bác
-        const ADMIN_PASS = "pclk@2026";   // Mật khẩu mới của bác
-
+        // ================== CẤU HÌNH TÀI KHOẢN & PHÂN QUYỀN ==================
         let isLoggedIn = localStorage.getItem('pclk_auth') === 'true';
-        let geoDataLoaded = false; // Cờ theo dõi xem đã tải lưới điện chưa
-
-        function applyAuthUI() {
-            const authBtn = document.getElementById('auth-btn');
-            const premiumDiv = document.getElementById('premium-features');
-            const layerControlDOM = document.getElementById('my-layer-control');
-            const drawControlDOM = document.querySelector('.leaflet-draw');
-
-            if (isLoggedIn) {
-                authBtn.innerText = "Đăng Xuất";
-                authBtn.style.background = "#dc3545";
-                premiumDiv.style.display = "block";
-                if(layerControlDOM) layerControlDOM.style.display = "block";
-                if(drawControlDOM) drawControlDOM.style.display = "block";
-                
-                if (!geoDataLoaded) { loadGeoData(); }
-            } else {
-                authBtn.innerText = "Đăng Nhập";
-                authBtn.style.background = "#007bff";
-                premiumDiv.style.display = "none";
-                if(layerControlDOM) layerControlDOM.style.display = "none";
-                if(drawControlDOM) drawControlDOM.style.display = "none";
-                
-                for (let key in gridLayers) {
-                    if (map.hasLayer(gridLayers[key])) { map.removeLayer(gridLayers[key]); }
-                }
-                
-                const filterVal = parseInt(document.getElementById('time-filter').value);
-                if (filterVal > 7200) {
-                    document.getElementById('time-filter').value = "1800";
-                    filterLightning();
-                }
-            }
-        }
-
-        function toggleAuth() {
-            if (isLoggedIn) {
-                if(confirm("Bạn có chắc chắn muốn đăng xuất và đóng quyền Admin?")) {
-                    isLoggedIn = false;
-                    localStorage.setItem('pclk_auth', 'false');
-                    applyAuthUI();
-                    filterLightning(); 
-                }
-            } else {
-                showModal("Tính năng này chỉ dành cho Cán bộ Quản lý Vận hành.<br>Vui lòng nhập tài khoản và mật khẩu để mở khóa lưới điện.");
-            }
-        }
-
-        function showModal(msg) {
-            document.getElementById('login-msg').innerHTML = msg;
-            document.getElementById('login-modal').style.display = 'flex';
-            document.getElementById('login-user').value = ''; // Xóa sạch ô tài khoản
-            document.getElementById('login-pass').value = ''; // Xóa sạch ô mật khẩu
-            document.getElementById('login-error').style.display = 'none';
-            // Tự động focus con trỏ nhấp nháy vào ô Tài khoản đầu tiên
-            setTimeout(() => document.getElementById('login-user').focus(), 100);
-        }
-
-        function closeModal() {
-            document.getElementById('login-modal').style.display = 'none';
-        }
-
-        function checkLogin() {
-            const user = document.getElementById('login-user').value.trim(); // Lấy giá trị tài khoản, bỏ dấu cách thừa
-            const pass = document.getElementById('login-pass').value;
-
-            // Kiểm tra xem CẢ 2 ĐIỀU KIỆN (Tài khoản và Mật khẩu) có khớp không
-            if (user === ADMIN_USER && pass === ADMIN_PASS) {
-                isLoggedIn = true;
-                localStorage.setItem('pclk_auth', 'true');
-                closeModal();
-                applyAuthUI();
-                filterLightning(); 
-                alert("Đăng nhập thành công! Đã mở khóa các lớp Lưới điện.");
-            } else {
-                document.getElementById('login-error').style.display = 'block';
-                document.getElementById('login-error').innerText = "Sai tài khoản hoặc mật khẩu!";
-            }
-        }
-
-        function toggleInfoPanel() {
-            const panel = document.getElementById('main-info-panel');
-            const icon = document.getElementById('panel-toggle-icon');
-            panel.classList.toggle('collapsed');
-            icon.innerHTML = panel.classList.contains('collapsed') ? '◀' : '▼';
-        }
+        let userRole = localStorage.getItem('pclk_role') || ''; // Cấp độ quyền (Điện lực nào)
+        let layerControl; // Khung menu bản đồ
+        let loadedLayers = {}; // Đánh dấu lớp nào đã kéo từ Firebase về
+        
+        // 1. LINK DỮ LIỆU LƯỚI ĐIỆN TỪ FIREBASE "bacha-d8448"
+        const dienLucList = {
+            " ĐL Văn Bàn": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/vanban.json",
+            " ĐL Lào Cai": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/laocai.json",
+            " ĐL SaPa": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/sapa.json",
+            " ĐL Bát Xát": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/batxat.json",
+            " ĐL Bắc Hà": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/bacha.json",
+            " ĐL Bảo Thắng": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/baothang.json",
+            " ĐL Bảo Yên": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/baoyen.json",
+            " ĐL Mường Khương": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/muongkhuong.json",
+            " ĐL Yên Bái": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/yenbai.json",
+            " ĐL Trấn Yên": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/tranyen.json",
+            " ĐL Văn Yên": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/vanyen.json",
+            " ĐL Lục Yên": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/lucyen.json",
+            " ĐL Nghĩa Lộ": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/nghialo.json",
+            " Cao Thế LC": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/caothelc.json",
+            " Cao Thế YB": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/caotheyb.json"
+        };
 
         const provinceBounds = {
             "Lào Cai": { minLat: 21.23, maxLat: 22.85, minLng: 103.50, maxLng: 105.00 },
@@ -343,10 +272,7 @@
         const drawControl = new L.Control.Draw({
             position: 'topleft',
             edit: { featureGroup: drawnItems, edit: false, remove: true },
-            draw: {
-                polyline: false, marker: false, circlemarker: false, circle: false,
-                polygon: { allowIntersection: false, showArea: true }, rectangle: true
-            }
+            draw: { polyline: false, marker: false, circlemarker: false, circle: false, polygon: { allowIntersection: false, showArea: true }, rectangle: true }
         });
         map.addControl(drawControl);
 
@@ -363,10 +289,7 @@
         });
 
         map.on(L.Draw.Event.DELETED, function (e) {
-            if (drawnItems.getLayers().length === 0) {
-                activePolygonGeoJSON = null;
-                activePolygonLayer = null;
-            }
+            if (drawnItems.getLayers().length === 0) { activePolygonGeoJSON = null; activePolygonLayer = null; }
             filterLightning();
         });
 
@@ -383,17 +306,8 @@
             animate: false, chunkedLoading: true 
         }).addTo(map);
 
-        const dienLucList = {
-            " ĐL Văn Bàn": "vanban.enc", " ĐL Lào Cai": "laocai.enc", " ĐL SaPa": "sapa.enc",
-            " ĐL Bát Xát": "batxat.enc", " ĐL Bắc Hà": "bacha.enc", " ĐL Bảo Thắng": "baothang.enc",
-            " ĐL Bảo Yên": "baoyen.enc", " ĐL Mường Khương": "muongkhuong.enc", " ĐL Yên Bái": "yenbai.enc",
-            " ĐL Trấn Yên": "tranyen.enc", " ĐL Văn Yên": "vanyen.enc", " ĐL Lục Yên": "lucyen.enc",
-            " ĐL Nghĩa Lộ": "nghialo.enc", " Cao Thế LC": "caothelc.enc", " Cao Thế YB": "caotheyb.enc"
-        };
-
+        // KHỞI TẠO CÁC LỚP LƯỚI ĐIỆN RỖNG (TRƯỚC KHI TẢI DỮ LIỆU)
         const gridLayers = {};
-        const overlayMaps = { "⚡ Cảnh báo Sét đánh": lightningLayer };
-
         for (let key in dienLucList) {
             gridLayers[key] = L.markerClusterGroup({
                 iconCreateFunction: function(cluster) {
@@ -406,27 +320,99 @@
                 },
                 animate: false, chunkedLoading: true, maxClusterRadius: 60, disableClusteringAtZoom: 15
             });
-            overlayMaps[key] = gridLayers[key];
         }
 
         const baseMaps = { "🗺️ Bản đồ Tiêu chuẩn": osmLayer, "🚗 Bản đồ Giao thông": googleStreets, "🛰️ Bản đồ Vệ tinh": googleSat };
 
-        const layerControl = L.control.layers(baseMaps, overlayMaps, {collapsed: false, position: 'bottomleft'}).addTo(map);
+        // 2. HÀM TẠO MENU THEO QUYỀN HẠN TÀI KHOẢN
+        function buildLayerControl() {
+            if (layerControl) { map.removeControl(layerControl); }
 
-        const layerContainer = layerControl.getContainer();
-        layerContainer.id = "my-layer-control"; // ID để tương tác bật tắt quyền
-        const collapseLayerBtn = document.createElement('div');
-        collapseLayerBtn.className = 'layer-collapse-btn';
-        collapseLayerBtn.innerHTML = '▼ Thu gọn (Các lớp Bản đồ)';
-        layerContainer.insertBefore(collapseLayerBtn, layerContainer.firstChild);
+            let activeOverlays = { "⚡ Cảnh báo Sét đánh": lightningLayer };
+
+            if (isLoggedIn) {
+                for (let key in dienLucList) {
+                    // Cấp menu nếu là Admin ('all') hoặc khớp đúng với tên quyền (' ĐL Văn Bàn')
+                    if (userRole === 'all' || userRole === key) {
+                        activeOverlays[key] = gridLayers[key];
+                    }
+                }
+            }
+
+            layerControl = L.control.layers(baseMaps, activeOverlays, {collapsed: false, position: 'bottomleft'}).addTo(map);
+
+            const layerContainer = layerControl.getContainer();
+            layerContainer.id = "my-layer-control"; 
+            const collapseLayerBtn = document.createElement('div');
+            collapseLayerBtn.className = 'layer-collapse-btn';
+            collapseLayerBtn.innerHTML = '▼ Thu gọn (Các lớp Bản đồ)';
+            layerContainer.insertBefore(collapseLayerBtn, layerContainer.firstChild);
+            
+            collapseLayerBtn.onclick = function(e) {
+                e.stopPropagation();
+                layerContainer.classList.toggle('custom-collapsed');
+                collapseLayerBtn.innerHTML = layerContainer.classList.contains('custom-collapsed') ? '▲ Bật / Tắt Lớp Bản Đồ' : '▼ Thu gọn (Các lớp Bản đồ)';
+            };
+
+            layerContainer.style.display = isLoggedIn ? "block" : "none";
+        }
+
+        // 3. LOGIC TẢI LƯỚI ĐIỆN SIÊU TỐC TỪ FIREBASE (LAZY LOAD)
+        let poleFeaturesByLayer = {}; 
         
-        collapseLayerBtn.onclick = function(e) {
-            e.stopPropagation();
-            layerContainer.classList.toggle('custom-collapsed');
-            collapseLayerBtn.innerHTML = layerContainer.classList.contains('custom-collapsed') ? '▲ Bật / Tắt Lớp Bản Đồ' : '▼ Thu gọn (Các lớp Bản đồ)';
-        };
+        map.on('overlayadd', async function(e) {
+            const layerName = e.name;
+            
+            if (dienLucList[layerName] && !loadedLayers[layerName]) {
+                if (!isLoggedIn) {
+                    map.removeLayer(e.layer);
+                    showModal("Vui lòng đăng nhập để xem lưới điện!");
+                    return;
+                }
 
-        map.on('overlayadd overlayremove', function() { filterLightning(); searchPoles(); });
+                const statusLabel = document.getElementById('loading-status');
+                statusLabel.innerText = `Đang tải ${layerName}...`;
+                statusLabel.style.color = "blue";
+
+                try {
+                    const response = await fetch(dienLucList[layerName]);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data === null) throw new Error("Dữ liệu rỗng");
+
+                        poleFeaturesByLayer[layerName] = [];
+                        let poles = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
+                        poleFeaturesByLayer[layerName].push(...poles);
+
+                        L.geoJSON(data, {
+                            style: function (f) { return (f.geometry.type === "LineString" || f.geometry.type === "MultiLineString") ? { color: "#0056b3", weight: 3, opacity: 0.8 } : {}; },
+                            pointToLayer: function (f, latlng) { return L.circleMarker(latlng, { radius: 5, fillColor: "#007bff", color: "#ffffff", weight: 1, fillOpacity: 0.9 }); },
+                            onEachFeature: function (f, layer) {
+                                if (f.properties) {
+                                    let p = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
+                                    for (const k in f.properties) if(f.properties[k] !== null) p += `<b>${k}:</b> ${f.properties[k]}<br>`;
+                                    layer.bindPopup(p + "</div>");
+                                }
+                            }
+                        }).addTo(gridLayers[layerName]); 
+
+                        loadedLayers[layerName] = true; 
+                        statusLabel.innerText = "Hoạt động tốt";
+                        statusLabel.style.color = "green";
+                        
+                        searchPoles(); 
+                    } else { throw new Error("Lỗi mạng"); }
+                } catch (error) {
+                    console.warn(`Lỗi tải file ${layerName}:`, error);
+                    statusLabel.innerText = `Lỗi tải ${layerName} (Kiểm tra Data)!`;
+                    statusLabel.style.color = "red";
+                    map.removeLayer(e.layer); 
+                }
+            }
+            filterLightning(); 
+        });
+
+        map.on('overlayremove', function() { filterLightning(); searchPoles(); });
 
         // ICON SÉT VÀ CÁC MỐC HẢI ĐẢO / THỦ ĐÔ
         const lightningIconRed = L.divIcon({ html: '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1" d="M12,2L2,14h8v8l12-12h-8L12,2z"></path></svg>', className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12] });
@@ -448,62 +434,124 @@
             return tenDoiTuong || (soHieu ? `Số hiệu: ${soHieu}` : "Cột chưa đặt tên");
         }
 
-        let poleFeaturesByLayer = {}; 
-        let currentExportData = [];
-        let lightningArray = []; 
+        // ================= GIAO DIỆN & TƯƠNG TÁC =================
 
-        async function loadGeoData() {
-            // Không tải lưới điện nếu chưa đăng nhập
-            if (!isLoggedIn) return; 
-            
-            for (let key in dienLucList) {
-                poleFeaturesByLayer[key] = []; 
-                try {
-                    const response = await fetch(`./${dienLucList[key]}?t=${new Date().getTime()}`);
-                    if (response.ok) {
-                        // 1. Tải file mã hóa về dưới dạng Text lộn xộn
-                        const encryptedText = await response.text(); 
-                        
-                        // 2. GIẢI MÃ bằng mật khẩu ADMIN_PASS (pclk@2026)
-                        let decryptedText;
-                        try {
-                            const bytes = CryptoJS.AES.decrypt(encryptedText, ADMIN_PASS);
-                            decryptedText = bytes.toString(CryptoJS.enc.Utf8);
-                        } catch (e) {
-                            console.error(`Lỗi giải mã file ${key}. Có thể sai mật khẩu lúc mã hóa!`);
-                            continue; // Bỏ qua file bị lỗi, chạy tiếp file khác
-                        }
+        function applyAuthUI() {
+            const authBtn = document.getElementById('auth-btn');
+            const premiumDiv = document.getElementById('premium-features');
+            const drawControlDOM = document.querySelector('.leaflet-draw');
 
-                        if (!decryptedText) {
-                            console.error(`Giải mã thất bại file ${key} (Mật khẩu không khớp)`);
-                            continue;
-                        }
+            buildLayerControl(); // Cập nhật lại menu theo quyền
 
-                        // 3. Ép text đã giải mã trở lại thành dạng chuẩn JSON
-                        const data = JSON.parse(decryptedText);
-
-                        // 4. Vẽ lên bản đồ như bình thường
-                        let poles = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
-                        poleFeaturesByLayer[key].push(...poles);
-
-                        L.geoJSON(data, {
-                            style: function (f) { return (f.geometry.type === "LineString" || f.geometry.type === "MultiLineString") ? { color: "#0056b3", weight: 3, opacity: 0.8 } : {}; },
-                            pointToLayer: function (f, latlng) { return L.circleMarker(latlng, { radius: 5, fillColor: "#007bff", color: "#ffffff", weight: 1, fillOpacity: 0.9 }); },
-                            onEachFeature: function (f, layer) {
-                                if (f.properties) {
-                                    let p = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
-                                    for (const k in f.properties) if(f.properties[k] !== null) p += `<b>${k}:</b> ${f.properties[k]}<br>`;
-                                    layer.bindPopup(p + "</div>");
-                                }
-                            }
-                        }).addTo(gridLayers[key]);
-                    }
-                } catch (error) {
-                    console.warn(`Không tìm thấy file ${dienLucList[key]}`);
+            if (isLoggedIn) {
+                authBtn.innerText = "Đăng Xuất";
+                authBtn.style.background = "#dc3545";
+                premiumDiv.style.display = "block";
+                if(drawControlDOM) drawControlDOM.style.display = "block";
+            } else {
+                authBtn.innerText = "Đăng Nhập";
+                authBtn.style.background = "#007bff";
+                premiumDiv.style.display = "none";
+                if(drawControlDOM) drawControlDOM.style.display = "none";
+                
+                for (let key in gridLayers) {
+                    if (map.hasLayer(gridLayers[key])) { map.removeLayer(gridLayers[key]); }
+                }
+                
+                const filterVal = parseInt(document.getElementById('time-filter').value);
+                if (filterVal > 7200) {
+                    document.getElementById('time-filter').value = "1800";
+                    filterLightning();
                 }
             }
-            geoDataLoaded = true;
         }
+
+        function toggleAuth() {
+            if (isLoggedIn) {
+                if(confirm("Bạn có chắc chắn muốn đăng xuất?")) {
+                    isLoggedIn = false;
+                    userRole = '';
+                    localStorage.setItem('pclk_auth', 'false');
+                    localStorage.removeItem('pclk_role'); 
+                    applyAuthUI();
+                    filterLightning(); 
+                }
+            } else {
+                showModal("Tính năng này chỉ dành cho Cán bộ Quản lý Vận hành.<br>Vui lòng nhập tài khoản và mật khẩu.");
+            }
+        }
+
+        function showModal(msg) {
+            document.getElementById('login-msg').innerHTML = msg;
+            document.getElementById('login-modal').style.display = 'flex';
+            document.getElementById('login-user').value = '';
+            document.getElementById('login-pass').value = '';
+            document.getElementById('login-error').style.display = 'none';
+            setTimeout(() => document.getElementById('login-user').focus(), 100);
+        }
+
+        function closeModal() { document.getElementById('login-modal').style.display = 'none'; }
+
+        // 4. KẾT NỐI TÀI KHOẢN BẰNG FIREBASE ACCOUNT-SET
+        async function checkLogin() {
+            const user = document.getElementById('login-user').value.trim().toLowerCase(); 
+            const pass = document.getElementById('login-pass').value;
+            const errorMsg = document.getElementById('login-error');
+
+            if(!user || !pass) return;
+
+            try {
+                errorMsg.style.display = 'block';
+                errorMsg.style.color = '#0056b3';
+                errorMsg.innerText = "⏳ Đang kết nối máy chủ xác thực...";
+
+                const res = await fetch('https://account-set-default-rtdb.asia-southeast1.firebasedatabase.app/.json');
+                const accounts = await res.json();
+
+                if (accounts && accounts[user] && accounts[user].pass === pass) {
+                    isLoggedIn = true;
+                    userRole = accounts[user].role; 
+                    
+                    localStorage.setItem('pclk_auth', 'true');
+                    localStorage.setItem('pclk_role', userRole); 
+                    
+                    closeModal();
+                    applyAuthUI();
+                    filterLightning(); 
+                    
+                    let alertMsg = userRole === 'all' ? 'Toàn quyền (Tất cả lưới điện)' : userRole;
+                    alert("Đăng nhập thành công!\nHệ thống đã cấp quyền: " + alertMsg);
+                } else {
+                    errorMsg.style.color = 'red';
+                    errorMsg.innerText = "❌ Sai tài khoản hoặc mật khẩu!";
+                }
+            } catch (err) {
+                errorMsg.style.color = 'red';
+                errorMsg.innerText = "❌ Lỗi mạng: Không thể kiểm tra tài khoản!";
+            }
+        }
+
+        function handleTimeFilterChange() {
+            const val = parseInt(document.getElementById('time-filter').value);
+            if (!isLoggedIn && val > 7200) {
+                document.getElementById('time-filter').value = "7200"; 
+                showModal("Khách vãng lai chỉ được xem sét trong 2 giờ qua.<br>Vui lòng đăng nhập để xem lịch sử sét toàn thời gian!");
+                filterLightning(); 
+                return;
+            }
+            filterLightning(); 
+        }
+
+        function toggleInfoPanel() {
+            const panel = document.getElementById('main-info-panel');
+            const icon = document.getElementById('panel-toggle-icon');
+            panel.classList.toggle('collapsed');
+            icon.innerHTML = panel.classList.contains('collapsed') ? '◀' : '▼';
+        }
+
+        // ================= LOGIC XỬ LÝ SÉT VÀ TÌM KIẾM =================
+        let currentExportData = [];
+        let lightningArray = []; 
 
         function searchPoles() {
             if (!isLoggedIn) return;
@@ -625,7 +673,7 @@
             let endTimeVal = document.getElementById('end-time').value;
             let customStartTS = startTimeVal ? new Date(startTimeVal).getTime() / 1000 : 0;
             let customEndTS = endTimeVal ? new Date(endTimeVal).getTime() / 1000 : Infinity;
-            let isCustomTime = isLoggedIn && (startTimeVal || endTimeVal); // Khách không có quyền Custom Time
+            let isCustomTime = isLoggedIn && (startTimeVal || endTimeVal); 
 
             if (autoZoom) {
                 if (selectedProvince === "all") map.setView([16.5, 105.0], 6); 
@@ -639,7 +687,6 @@
             let insidePolygonData = []; 
             let activePoleFeatures = [];
             
-            // Chỉ lấy lưới điện nếu đã đăng nhập và lưới đã tải
             if (isLoggedIn) {
                 for (let key in gridLayers) {
                     if (map.hasLayer(gridLayers[key]) && poleFeaturesByLayer[key]) {
@@ -680,7 +727,6 @@
 
                     const pt = turf.point([strike.lng, strike.lat]);
                     let isInside = true;
-                    // Tính năng vẽ chỉ dùng cho Admin
                     if (isLoggedIn && activePolygonGeoJSON) {
                         if (!turf.booleanPointInPolygon(pt, activePolygonGeoJSON)) isInside = false; 
                     }
@@ -739,7 +785,6 @@
             document.getElementById('ic-count').innerText = icCount;
             currentExportData = insidePolygonData;
 
-            // HIỂN THỊ NGUỒN TRÊN BẢNG BÁO CÁO (Chỉ Admin)
             if (isLoggedIn && activePolygonLayer) {
                 let tableRowsHtml = "";
                 insidePolygonData.forEach((item) => {
@@ -786,7 +831,8 @@
             }
         }
 
-        // CHẠY NGAY KHI MỞ TRANG ĐỂ KIỂM TRA PHÂN QUYỀN
+        // CHẠY NGAY KHI MỞ TRANG 
+        buildLayerControl();
         applyAuthUI();
         fetchLightningData(); 
         setInterval(fetchLightningData, 450000); 
