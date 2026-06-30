@@ -745,70 +745,56 @@
         }
 
        // ================= TẢI DỮ LIỆU TỪ 2 KHO FIREBASE =================
-       async function fetchLightningData() {
-            const statusLabel = document.getElementById('loading-status');
-            
-            // Link 1: Kho Chính (Có cường độ, lịch sử dài)
-            const url_chinh = 'https://dataset-2-af456-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
-            // Link 2: Kho Tức Thời (10 phút, không lọc cường độ)
-            const url_nhanh = 'https://data-set-tuc-thoi-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
-            
-            try {
-                statusLabel.innerText = "Đang đồng bộ dữ liệu...";
-                statusLabel.style.color = "blue";
+async function fetchLightningData() {
+    const statusLabel = document.getElementById('loading-status');
+    const url_chinh = 'https://dataset-2-af456-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
+    const url_nhanh = 'https://data-set-tuc-thoi-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
+    
+    try {
+        statusLabel.innerText = "Đang tải dữ liệu từ 2 kho...";
+        
+        const [res1, res2] = await Promise.all([
+            fetch(url_chinh, { cache: 'no-store' }),
+            fetch(url_nhanh, { cache: 'no-store' })
+        ]);
 
-                // Tải song song cả 2 kho để tăng tốc độ
-                const [res1, res2] = await Promise.all([
-                    fetch(url_chinh, { cache: 'no-store' }),
-                    fetch(url_nhanh, { cache: 'no-store' })
-                ]);
+        const db_chinh = await res1.json() || {};
+        const db_nhanh = await res2.json() || {};
+        
+        let allLightning = [];
 
-                if (!res1.ok || !res2.ok) throw new Error("Lỗi mạng khi kết nối máy chủ");
-                
-                const db1 = await res1.json() || {};
-                const db2 = await res2.json() || {};
-                
-                // Dùng Map để chống trùng lặp điểm sét
-                let combinedMap = new Map(); 
+        // 1. Thêm toàn bộ dữ liệu kho Chính
+        for (let key in db_chinh) {
+            let item = db_chinh[key];
+            if (item && item.t) {
+                allLightning.push({
+                    lat: item.lat, lng: item.lng, giatri: item.g || 0,
+                    timestamp: item.t, loaiset: item.l || 0, src: "Hymetnet-Chính"
+                });
+            }
+        }
 
-                function processDB(db, sourceName) {
-                    let tempArr = [];
-                    // Bóc tách dữ liệu theo các nhánh
-                    if (db.temp) tempArr = tempArr.concat(Object.values(db.temp));
-                    if (db.full) tempArr = tempArr.concat(Object.values(db.full));
-                    
-                    for (let key in db) {
-                        if (key !== 'temp' && key !== 'full' && db[key] && typeof db[key] === 'object') {
-                            tempArr.push(db[key]);
-                        }
-                    }
-                    
-                    tempArr.forEach(item => {
-                        if (item.t !== undefined) {
-                            // Tạo key duy nhất: Thời gian_Vĩ độ_Kinh độ
-                            const uniqueKey = `${item.t}_${parseFloat(item.lat).toFixed(3)}_${parseFloat(item.lng).toFixed(3)}`;
-                            
-                            // Nếu trùng, ưu tiên giữ lại điểm CÓ CƯỜNG ĐỘ (g khác 0)
-                            if (combinedMap.has(uniqueKey)) {
-                                const existingItem = combinedMap.get(uniqueKey);
-                                if (existingItem.giatri === 0 && item.g !== 0 && item.g !== undefined) {
-                                    existingItem.giatri = item.g;
-                                    existingItem.src = "Cảm biến Tổng hợp"; // Gắn mác lại nguồn xịn
-                                }
-                            } else {
-                                combinedMap.set(uniqueKey, {
-                                    lat: item.lat,
-                                    lng: item.lng,
-                                    giatri: item.g !== undefined ? item.g : 0,
-                                    timestamp: item.t,
-                                    loaiset: item.l !== undefined ? item.l : 0, 
-                                    src: item.src ? item.src : sourceName,
-                                    is_new_format: true
-                                });
-                            }
-                        }
-                    });
-                }
+        // 2. Thêm toàn bộ dữ liệu kho Tức thời (không lọc trùng, hiển thị tất)
+        for (let key in db_nhanh) {
+            let item = db_nhanh[key];
+            if (item && item.t) {
+                allLightning.push({
+                    lat: item.lat, lng: item.lng, giatri: item.g || 0,
+                    timestamp: item.t, loaiset: item.l || 0, src: "Tức-Thời"
+                });
+            }
+        }
+
+        // Sắp xếp theo thời gian mới nhất
+        lightningArray = allLightning.sort((a, b) => b.timestamp - a.timestamp);
+        
+        filterLightning(true);
+        statusLabel.innerText = `Hiển thị ${lightningArray.length} điểm (bao gồm cả dữ liệu chồng lấn)`;
+    } catch (e) {
+        console.error("Lỗi:", e);
+        statusLabel.innerText = "Lỗi kết nối Firebase!";
+    }
+}
 
                 // Xử lý kho tức thời trước, sau đó lấy kho chính đè lên (nếu trùng) để lấy thông số cường độ chuẩn
                 processDB(db2, "Sét Tức Thời");
