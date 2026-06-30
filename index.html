@@ -402,15 +402,13 @@
 let p = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
 for (const k in f.properties) if(f.properties[k] !== null) p += `<b>${k}:</b> ${f.properties[k]}<br>`;
 
-// Nút mở Google Maps CHỈ DÀNH RIÊNG CHO CỘT
-// Sử dụng dấu cách giữa lat và lng để Google Maps không bị nhầm lẫn
 p += `<hr style="margin:6px 0; border: 0; border-top: 1px dashed #ccc;">
       <div style="text-align: center; margin-top: 5px; margin-bottom: 2px;">
           <a href="https://www.google.com/maps/search/?api=1&query=${lat}%20${lng}" target="_blank" 
              style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; 
              padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; 
              border-radius: 4px; display: inline-block; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-             📍 Đường đến cột (Google Maps)
+             📍 Mở Google Maps
           </a>
       </div>`;
       
