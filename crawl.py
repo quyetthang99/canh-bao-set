@@ -6,92 +6,83 @@ import re
 import hashlib
 from datetime import datetime, timezone, timedelta
 
-def crawl_lightning_data():
-    print("🚀 KHỞI ĐỘNG HỆ THỐNG V16 (QUÉT 3 GIỜ & CHUẨN HÓA LOGIC PHÂN LUỒNG)...")
+def crawl_lightning_data_realtime():
+    print("🚀 KHỞI ĐỘNG BOT TỨC THỜI: QUÉT SÉT (10 PHÚT QUA - KHÔNG LỌC CƯỜNG ĐỘ)...")
     
-    now_utc = datetime.now(timezone.utc)
-    past_utc = now_utc - timedelta(minutes=180) 
+    # 1. TẠO KHUNG THỜI GIAN LÙI 10 PHÚT 
+    now = datetime.now(timezone.utc)
+    past = now - timedelta(minutes=10)
     
-    end_time = now_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    start_time = past_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    current_ts = int(now_utc.timestamp())
+    end_time = now.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    start_time = past.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    current_ts = int(time.time())
 
+    # Phạm vi quét (Lào Cai & Vùng lân cận)
+    MIN_LAT, MAX_LAT = 21.10, 23.00
+    MIN_LNG, MAX_LNG = 103.30, 105.20
+
+    # --- CẤU HÌNH API NGUỒN ---
     url_hymetnet = f"http://hymetnet.gov.vn/lightningmaps/?_t={current_ts}"
     proxy_hymetnet = f"https://api.allorigins.win/raw?url={url_hymetnet}&disableCache=true"
+    headers_hymetnet = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Cache-Control": "no-cache"
+    }
 
-    # 1. Quét Lào Cai (Trạng thái trực chiến)
     api_url_vaisala = (
-        f"https://evntools.com/api/lightning/geojson?start_time={start_time}&end_time={end_time}"
-        f"&limit=50000&min_lat=21.4543&max_lat=22.5379&min_lon=103.7878&max_lon=105.2957"
+        f"https://evntools.com/api/lightning/map-data?start_time={start_time}&end_time={end_time}"
+        f"&limit=5000&min_lat={MIN_LAT}&max_lat={MAX_LAT}&min_lon={MIN_LNG}&max_lon={MAX_LNG}"
     )
+    headers_vaisala = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json"
+    }
 
-    # 2. Quét Miền Bắc (Chế độ Test)
-    # api_url_vaisala = (
-    #     f"https://evntools.com/api/lightning/geojson?start_time={start_time}&end_time={end_time}"
-    #     f"&limit=50000&min_lat=19.5000&max_lat=23.5000&min_lon=102.0000&max_lon=108.0000"
-    # )
-
-    # 3. Quét Việt Nam (Chế độ Test rộng)
-    # api_url_vaisala = (
-    #     f"https://evntools.com/api/lightning/geojson?start_time={start_time}&end_time={end_time}"
-    #     f"&limit=50000&min_lat=8.0000&max_lat=24.0000&min_lon=102.0000&max_lon=110.0000"
-    # )
-
-    FIREBASE_URL = "https://datasetweb-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
+    # FIREBASE ĐÍCH MỚI
+    FIREBASE_URL = "https://data-set-tuc-thoi-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
     
-    # Kéo dữ liệu cũ về để chuẩn bị dọn rác
+    # 2. TẢI BỘ NHỚ TỪ FIREBASE ĐỂ TRÁNH TRÙNG LẶP
     db_data = {}
     try:
-        res = requests.get(FIREBASE_URL, timeout=25)
-        if res.status_code == 200 and res.json(): db_data = res.json()
-    except: pass
+        print("Đang kết nối Firebase...")
+        fb_response = requests.get(FIREBASE_URL, timeout=15)
+        if fb_response.status_code == 200 and fb_response.json() is not None:
+            db_data = fb_response.json()
+    except Exception as e:
+        print(f"Lỗi đọc Firebase: {e}")
 
     updates = {}
-    so_luong_temp = 0
-    so_luong_full = 0
+    diem_moi = 0
 
-    def phan_luong_set(lat, lng, giatri, loaiset, ts, nguon):
-        nonlocal so_luong_temp, so_luong_full
-        
-        ts_int = int(ts)
-        key = hashlib.md5(f"{ts_int}_{round(lat,4)}_{round(lng,4)}".encode()).hexdigest()
-        
-        data_packet = {
-            "lat": lat, "lng": lng, "giatri": giatri,
-            "loaiset": loaiset, "timestamp": ts_int,
-            "src": nguon, "is_new_format": True
-        }
-
-        # 2. LOGIC LỌC MỚI: Chỉ quan tâm Cường độ (Bỏ xét Giờ chẵn)
-        if giatri == 0 or giatri == 0.0:
-            # Không có cường độ -> Kho tạm
-            updates[f"temp/{key}"] = data_packet
-            so_luong_temp += 1
-        else:
-            # Có cường độ -> Kho chính
-            updates[f"full/{key}"] = data_packet
-            so_luong_full += 1
-
-    # =======================================================
-    # Quét Hymetnet
+    # LUỒNG 1: CÀO HYMETNET (CHỈ TỪ CHỐI THỜI GIAN QUÁ HẠN, LẤY MỌI CƯỜNG ĐỘ)
+    print("\n[LUỒNG 1] Đang quét Hymetnet...")
+    hymetnet_success = False
     try:
-        res_h = requests.get(proxy_hymetnet, timeout=20)
+        res_h = requests.get(url_hymetnet, headers=headers_hymetnet, timeout=10)
+        if res_h.status_code != 200:
+            res_h = requests.get(proxy_hymetnet, headers=headers_hymetnet, timeout=20)
+            
         if res_h.status_code == 200:
-            blocks = re.findall(r'\{[^{}]*\}', res_h.text)
-            for block in [b for b in blocks if 'lat' in b.lower()]:
+            raw_text = res_h.text
+            blocks = re.findall(r'\{[^{}]*\}', raw_text)
+            valid_blocks = [b for b in blocks if 'lat' in b.lower() and 'lng' in b.lower() and 'nam' in b.lower()]
+            
+            for block in valid_blocks:
                 try:
+                    # BỎ QUA BỘ LỌC CƯỜNG ĐỘ, CHỈ LẤY GIÁ TRỊ NẾU CÓ, KHÔNG CÓ THÌ GÁN 0
+                    loaiset_m = re.search(r'["\']?loaiset["\']?\s*:\s*(\d+)', block, re.IGNORECASE)
+                    loaiset = int(loaiset_m.group(1)) if loaiset_m else 0
+                    
+                    giatri_m = re.search(r'["\']?giatri["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE)
+                    giatri = float(giatri_m.group(1)) if giatri_m else 0.0
+                        
                     lat = float(re.search(r'["\']?lat["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE).group(1))
                     lng = float(re.search(r'["\']?lng["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE).group(1))
                     if lat > lng: lat, lng = lng, lat
                     
-                    # 1. Quét Lào Cai
-                    if not (21.40 <= lat <= 22.60 and 103.70 <= lng <= 105.30): continue
-                    
-                    g_m = re.search(r'["\']?giatri["\']?\s*:\s*([-\d.]+)', block, re.IGNORECASE)
-                    giatri = float(g_m.group(1)) if g_m else 0.0
-                    l_m = re.search(r'["\']?loaiset["\']?\s*:\s*(\d+)', block, re.IGNORECASE)
-                    loaiset = int(l_m.group(1)) if l_m else 0
-                    
+                    if not (MIN_LAT <= lat <= MAX_LAT and MIN_LNG <= lng <= MAX_LNG):
+                        continue
+                        
                     nam = int(re.search(r'["\']?nam["\']?\s*:\s*(\d+)', block, re.IGNORECASE).group(1))
                     thang = int(re.search(r'["\']?thang["\']?\s*:\s*(\d+)', block, re.IGNORECASE).group(1))
                     ngay = int(re.search(r'["\']?ngay["\']?\s*:\s*(\d+)', block, re.IGNORECASE).group(1))
@@ -100,65 +91,123 @@ def crawl_lightning_data():
                     giay_m = re.search(r'["\']?giay["\']?\s*:\s*(\d+)', block, re.IGNORECASE)
                     giay = int(giay_m.group(1)) if giay_m else 0
                     
-                    ts = datetime(nam, thang, ngay, gio, phut, giay, tzinfo=timezone.utc).timestamp()
+                    dt = datetime(nam, thang, ngay, gio, phut, giay, tzinfo=timezone.utc)
+                    ts = dt.timestamp()
                     
-                    # 3. THAY ĐỔI ĐIỀU KIỆN LẤY DỮ LIỆU: Chỉ lấy các điểm sét trong 3 giờ (10800 giây)
-                    if current_ts - ts <= 10800: 
-                        phan_luong_set(lat, lng, giatri, loaiset, ts, "Hymetnet")
-                except: continue
-    except: pass
+                    # CHỈ LẤY SÉT TRONG 10 PHÚT (600 GIÂY) QUA
+                    if current_ts - ts > 600: 
+                        continue
 
-    # =======================================================
-    # Quét EVNTools
-    for attempt in range(2):
-        try:
-            res_v = requests.get(api_url_vaisala, timeout=20)
-            if res_v.status_code == 200:
-                for f in res_v.json().get("features", []):
-                    p = f.get("properties", {})
-                    coords = f.get("geometry", {}).get("coordinates", [])
-                    if len(coords) >= 2:
-                        giatri = abs(float(p.get("amplitude", 0)))
-                        try: ts_str = p.get("timestamp", p.get("time"))
-                        except: continue
-                        try: ts = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
-                        except:
-                            try: ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp()
-                            except: continue
-                        phan_luong_set(coords[1], coords[0], giatri, p.get("type", 0), ts, p.get("source", "Vaisala").title())
-                break
-        except: time.sleep(3)
+                    lat_round = round(lat, 4)
+                    lng_round = round(lng, 4)
+                    ts_int = int(ts)
+                    key = hashlib.md5(f"{ts_int}_{lat_round}_{lng_round}".encode()).hexdigest()
+                    
+                    if key not in db_data and key not in updates:
+                        updates[key] = {"lat": lat, "lng": lng, "g": giatri, "t": ts_int, "l": loaiset}
+                        db_data[key] = updates[key]
+                        diem_moi += 1
+                except Exception:
+                    continue
+            hymetnet_success = True
+            print(f"✅ Hymetnet: Đã ghi nhận {diem_moi} điểm.")
+        else:
+            print(f"❌ Hymetnet lỗi HTTP {res_h.status_code}")
+    except Exception as e:
+        print(f"❌ Lỗi mạng Hymetnet: {e}")
 
-    xoa_temp = 0
-    xoa_full = 0
-
-    temp_cleanup_time = current_ts - 12600 
-    seven_days_ago = current_ts - 604800 
-
-    temp_db = db_data.get("temp", {})
-    for k, v in temp_db.items():
-        if v and float(v.get("timestamp", 0)) < temp_cleanup_time:
-            updates[f"temp/{k}"] = None
-            xoa_temp += 1
-
-    full_db = db_data.get("full", {})
-    for k, v in full_db.items():
-        if v and float(v.get("timestamp", 0)) < seven_days_ago:
-            updates[f"full/{k}"] = None
-            xoa_full += 1
-
-    # ĐẨY DỮ LIỆU LÊN FIREBASE
-    if updates:
-        print(f"🔄 Đang đồng bộ lên Firebase...")
-        try: 
-            requests.patch(FIREBASE_URL, json=updates, timeout=30)
-        except Exception as e: 
-            print(f"❌ Lỗi ghi Firebase: {e}")
+    # LUỒNG 2: CÀO VAISALA (NẾU CẦN BỔ SUNG, BỎ QUA KIỂM TRA GIÁ TRỊ CƯỜNG ĐỘ)
+    print("\n[LUỒNG 2] Đang quét Vaisala...")
+    vaisala_success = False
+    try:
+        res_v = requests.get(api_url_vaisala, headers=headers_vaisala, timeout=15)
+        if res_v.status_code == 200:
+            raw_data = res_v.json()
+            items = []
             
-        print(f"✅ Nạp: {so_luong_temp} điểm TẠM | {so_luong_full} điểm CHÍNH THỨC.")
-        print(f"🧹 Xóa: {xoa_temp} điểm tạm (>3.5 giờ) | {xoa_full} điểm cũ (>7 ngày).")
+            if isinstance(raw_data, dict) and "features" in raw_data: items = raw_data["features"]
+            elif isinstance(raw_data, dict) and "data" in raw_data: items = raw_data["data"]
+            elif isinstance(raw_data, list): items = raw_data
+
+            diem_v = 0
+            for item in items:
+                lat = lng = giatri = time_str = None
+                loaiset = 0
+
+                if "geometry" in item and "properties" in item:
+                    geom = item.get("geometry", {})
+                    props = item.get("properties", {})
+                    coords = geom.get("coordinates", [])
+                    if len(coords) >= 2: lng, lat = coords[0], coords[1]
+                    giatri = abs(float(props.get("amplitude", 0)))
+                    loaiset = props.get("type", 0)
+                    time_str = props.get("timestamp", props.get("time"))
+                else:
+                    lat = item.get("lat") or item.get("latitude")
+                    lng = item.get("lon") or item.get("longitude") or item.get("lng")
+                    g_raw = item.get("amplitude") or item.get("peak_current") or item.get("current") or 0
+                    giatri = abs(float(g_raw))
+                    loaiset = item.get("type", 0)
+                    time_str = item.get("timestamp") or item.get("time") or item.get("datetime")
+
+                # Không lọc cường độ (g = 0 vẫn lấy), chỉ cần có tọa độ và thời gian
+                if lat is None or lng is None or not time_str:
+                    continue
+
+                try:
+                    dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                    ts = dt.timestamp()
+                except:
+                    try:
+                        dt = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+                        ts = dt.timestamp()
+                    except: continue
+
+                # Chỉ lấy 10 phút (600 giây) qua
+                if current_ts - ts > 600:
+                    continue
+
+                lat_round = round(float(lat), 4)
+                lng_round = round(float(lng), 4)
+                ts_int = int(ts)
+                key = hashlib.md5(f"{ts_int}_{lat_round}_{lng_round}".encode()).hexdigest()
+                
+                if key not in db_data and key not in updates:
+                    updates[key] = {"lat": float(lat), "lng": float(lng), "g": giatri, "t": ts_int, "l": int(loaiset)}
+                    db_data[key] = updates[key] 
+                    diem_v += 1
+                    diem_moi += 1
+                    
+            vaisala_success = True
+            print(f"✅ Vaisala: Bổ sung {diem_v} điểm.")
+        elif res_v.status_code == 429:
+            print("⚠️ Vaisala báo lỗi 429 (Chặn IP).")
+    except Exception as e:
+        print(f"❌ Lỗi Vaisala: {e}")
+
+    # 3. DỌN SẠCH DỮ LIỆU CŨ QUÁ 2 GIỜ (7200 GIÂY)
+    two_hours_ago = current_ts - 7200
+    diem_xoa = 0
+    for k, v in db_data.items():
+        if v is None: continue
+        t_val = v.get("t", 0)
+        if float(t_val) < two_hours_ago:
+            updates[k] = None 
+            diem_xoa += 1
+
+    # 4. ĐẨY DỮ LIỆU LÊN FIREBASE
+    if updates:
+        print(f"\n🔄 Đang đồng bộ {len(updates)} tác vụ lên Firebase Tức Thời...")
+        try:
+            res = requests.patch(FIREBASE_URL, json=updates, timeout=15)
+            if res.status_code == 200: 
+                print(f"✅ HOÀN TẤT! Ghi nhận {diem_moi} điểm mới. Xóa {diem_xoa} điểm cũ (>2h).")
+            else:
+                print(f"❌ Lỗi ghi Firebase: HTTP {res.status_code}")
+        except Exception as e: 
+            print(f"❌ Mất kết nối ghi Firebase: {e}")
     else:
-        print(f"✅ Hệ thống sạch sẽ, không có cập nhật mới.")
+        print("\n✅ Không có điểm sét mới nào trong 10 phút qua, và không có rác cần dọn.")
 
 if __name__ == "__main__":
-    crawl_lightning_data()
+    crawl_lightning_data_realtime()
