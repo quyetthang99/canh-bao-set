@@ -68,12 +68,12 @@
             border: 1px solid #17a2b8;
             border-radius: 3px;
             padding: 2px 4px;
-            font-size: 10px; /* Nhỏ gọn hơn để đỡ rối */
+            font-size: 10px;
             font-weight: bold;
             color: #0056b3;
             white-space: nowrap;
             box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            pointer-events: none; /* Tránh cản trở click vào điểm cột */
+            pointer-events: none;
         }
     </style>
 </head>
@@ -220,7 +220,7 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     
     <script>
-        // ================== CẤU HÌNH TÀI KHOẢN & PHÂN QUYỀN VỚI THỜI GIAN ĐĂNG NHẬP ==================
+        // ================== CẤU HÌNH TÀI KHOẢN & PHÂN QUYỀN ==================
         let isLoggedIn = false;
         let userRole = '';
         
@@ -242,10 +242,9 @@
         let layerControl; 
         let loadedLayers = {}; 
         
-        // --- CÁC BIẾN CHO TÍNH NĂNG NHÃN TÊN ---
-        let showLabels = false; // Mặc định tắt
-        const labelToggleLayer = L.layerGroup(); // Lớp mồi để tạo nút Menu
-        const labelGroups = {}; // Kho chứa các cụm nhãn tên của từng Điện lực
+        let showLabels = false; 
+        const labelToggleLayer = L.layerGroup(); 
+        const labelGroups = {}; 
         
         const dienLucList = {
             " ĐL Văn Bàn": "https://bacha-d8448-default-rtdb.asia-southeast1.firebasedatabase.app/vanban.json",
@@ -369,7 +368,6 @@
             let activeOverlays = { "⚡ Cảnh báo Sét đánh": lightningLayer };
 
             if (isLoggedIn) {
-                // Thêm lớp Nút bật/tắt Tên thiết bị (chèn vào ngay sau Sét)
                 activeOverlays["Hiển thị tên thiết bị"] = labelToggleLayer;
                 
                 for (let key in dienLucList) {
@@ -397,15 +395,14 @@
             layerContainer.style.display = isLoggedIn ? "block" : "none";
         }
 
-        // ================= HỆ THỐNG KIỂM SOÁT HIỂN THỊ NHÃN TÊN (THÔNG MINH) =================
+        // ================= HỆ THỐNG KIỂM SOÁT HIỂN THỊ NHÃN TÊN =================
         function updateLabelsVisibility() {
             if (!isLoggedIn) return;
             const currentZoom = map.getZoom();
-            const ZOOM_THRESHOLD = 13; // Mốc Zoom: Mức 13 trở lên mới hiện chữ
+            const ZOOM_THRESHOLD = 13; 
 
             for (let key in gridLayers) {
                 if (map.hasLayer(gridLayers[key]) && labelGroups[key]) {
-                    // Cột ĐANG BẬT, kiểm tra điều kiện Zoom và Công tắc Hiện tên
                     if (showLabels && currentZoom >= ZOOM_THRESHOLD) {
                         if (!map.hasLayer(labelGroups[key])) { map.addLayer(labelGroups[key]); }
                     } else {
@@ -414,7 +411,6 @@
                 }
             }
             
-            // Đổi chữ cảnh báo cho sếp biết
             const statusLabel = document.getElementById('loading-status');
             if (showLabels) {
                 if (currentZoom < ZOOM_THRESHOLD) {
@@ -427,7 +423,6 @@
             }
         }
 
-        // Bắt sự kiện người dùng Cuộn chuột (Zoom in/out) để tự động bật tắt nhãn
         map.on('zoomend', function() {
             updateLabelsVisibility();
         });
@@ -443,24 +438,20 @@
         // 3. LOGIC TẢI LƯỚI ĐIỆN VÀ GẮN NHÃN
         let poleFeaturesByLayer = {}; 
         
-        // 3. LOGIC TẢI LƯỚI ĐIỆN VÀ GẮN NHÃN (SỬA LẠI)
         map.on('overlayadd', async function(e) {
             const layerName = e.name;
             
-            // Xử lý khi BẬT nút Hiện tên thiết bị
             if (layerName === "Hiển thị tên thiết bị") {
                 showLabels = true;
-                // Ép tất cả các lớp lưới điện ĐANG BẬT phải hiện nhãn
                 for (let key in gridLayers) {
                     if (map.hasLayer(gridLayers[key]) && labelGroups[key]) {
                         map.addLayer(labelGroups[key]);
                     }
                 }
-                updateLabelsVisibility(); // Kiểm tra mức zoom để ẩn hiện
+                updateLabelsVisibility(); 
                 return;
             }
             
-            // Xử lý khi BẬT lớp lưới điện
             if (dienLucList[layerName] && !loadedLayers[layerName]) {
                 if (!isLoggedIn) {
                     map.removeLayer(e.layer);
@@ -482,7 +473,7 @@
                         let poles = data.features.filter(f => f.geometry && (f.geometry.type === "Point" || f.geometry.type === "MultiPoint"));
                         poleFeaturesByLayer[layerName].push(...poles);
                         
-                        labelGroups[layerName] = L.layerGroup(); // Khởi tạo kho chứa nhãn
+                        labelGroups[layerName] = L.layerGroup();
 
                         L.geoJSON(data, {
                             style: function (f) { return (f.geometry.type === "LineString" || f.geometry.type === "MultiLineString") ? { color: "#0056b3", weight: 3, opacity: 0.8 } : {}; },
@@ -493,7 +484,6 @@
                                     if (f.geometry.type === "Point") { lng = f.geometry.coordinates[0]; lat = f.geometry.coordinates[1]; } 
                                     else if (f.geometry.type === "MultiPoint") { lng = f.geometry.coordinates[0][0]; lat = f.geometry.coordinates[0][1]; }
                                     
-                                    // Tạo nhãn tên
                                     if (lat && lng) {
                                         let shortName = getShortLabel(f.properties);
                                         let labelMarker = L.marker([lat, lng], {
@@ -508,7 +498,7 @@
                                           <div style="text-align: center; margin-top: 5px; margin-bottom: 2px;">
                                               <a href="https://www.google.com/maps/search/?api=1&query=${lat}%20${lng}" target="_blank" 
                                                  style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; border-radius: 4px; display: block; width: 90%; margin: 0 auto; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                                                 📍 Mở Google Maps
+                                                 📍 Đường đến cột (Google Maps)
                                               </a>
                                           </div>`;
                                     for (const k in f.properties) if(f.properties[k] !== null) p += `<b>${k}:</b> ${f.properties[k]}<br>`;    
@@ -521,7 +511,6 @@
                         statusLabel.innerText = "Hoạt động tốt";
                         statusLabel.style.color = "green";
                         
-                        // Kiểm tra nếu nhãn đang bật thì hiển thị luôn
                         if (showLabels) { map.addLayer(labelGroups[layerName]); }
                         updateLabelsVisibility();
                         searchPoles(); 
@@ -532,18 +521,14 @@
                     map.removeLayer(e.layer); 
                 }
             } else if (dienLucList[layerName] && loadedLayers[layerName]) {
-                // Nếu đã load rồi thì kiểm tra xem cần bật lại nhãn không
                 if (showLabels && labelGroups[layerName]) { map.addLayer(labelGroups[layerName]); }
                 updateLabelsVisibility();
             }
             filterLightning(); 
         });
 
-        // Xử lý khi TẮT lớp
         map.on('overlayremove', function(e) {
             const layerName = e.name;
-            
-            // Nếu tắt nút Hiện tên
             if (layerName === "Hiển thị tên thiết bị") {
                 showLabels = false;
                 for (let key in labelGroups) {
@@ -551,12 +536,9 @@
                 }
                 return;
             }
-            
-            // Nếu tắt lớp lưới điện
             if (dienLucList[layerName] && labelGroups[layerName]) {
                 map.removeLayer(labelGroups[layerName]);
             }
-            
             filterLightning(); 
             searchPoles(); 
         });
@@ -583,7 +565,6 @@
 
         // ================= GIAO DIỆN & TƯƠNG TÁC =================
 
-        // Hàm ẩn hiện mật khẩu
         function togglePassVisibility() {
             const passInput = document.getElementById('login-pass');
             const toggleIcon = document.getElementById('toggle-pass');
@@ -601,7 +582,7 @@
             const premiumDiv = document.getElementById('premium-features');
             const drawControlDOM = document.querySelector('.leaflet-draw');
 
-            buildLayerControl(); // Cập nhật lại menu theo quyền
+            buildLayerControl(); 
 
             if (isLoggedIn) {
                 authBtn.innerText = "Đăng Xuất";
@@ -614,7 +595,6 @@
                 premiumDiv.style.display = "none";
                 if(drawControlDOM) drawControlDOM.style.display = "none";
                 
-                // Gỡ các lớp hiện tại khi đăng xuất
                 for (let key in gridLayers) {
                     if (map.hasLayer(gridLayers[key])) { map.removeLayer(gridLayers[key]); }
                     if (labelGroups[key] && map.hasLayer(labelGroups[key])) { map.removeLayer(labelGroups[key]); }
@@ -636,7 +616,7 @@
                     userRole = '';
                     localStorage.setItem('pclk_auth', 'false');
                     localStorage.removeItem('pclk_role'); 
-                    localStorage.removeItem('pclk_login_time'); // Xóa đồng hồ tính giờ
+                    localStorage.removeItem('pclk_login_time'); 
                     applyAuthUI();
                     filterLightning(); 
                 }
@@ -651,7 +631,6 @@
             document.getElementById('login-user').value = '';
             document.getElementById('login-pass').value = '';
             
-            // Khôi phục lại trạng thái icon mắt khi bật form
             document.getElementById('login-pass').type = "password";
             document.getElementById('toggle-pass').innerText = "👁️";
             
@@ -661,7 +640,6 @@
 
         function closeModal() { document.getElementById('login-modal').style.display = 'none'; }
 
-        // 4. KẾT NỐI TÀI KHOẢN BẰNG FIREBASE ACCOUNT-SET
         async function checkLogin() {
             const user = document.getElementById('login-user').value.trim().toLowerCase(); 
             const pass = document.getElementById('login-pass').value;
@@ -683,7 +661,7 @@
                     
                     localStorage.setItem('pclk_auth', 'true');
                     localStorage.setItem('pclk_role', userRole); 
-                    localStorage.setItem('pclk_login_time', Date.now()); // Bắt đầu tính giờ 2 tiếng
+                    localStorage.setItem('pclk_login_time', Date.now()); 
                     
                     closeModal();
                     applyAuthUI();
@@ -766,44 +744,82 @@
             setTimeout(() => { L.popup().setLatLng([lat, lng]).setContent(`<b style="color:#0056b3; font-size:14px;">🎯 Vị trí tìm kiếm:</b><br>${name}`).openOn(map); }, 1500);
         }
 
+       // ================= TẢI DỮ LIỆU TỪ 2 KHO FIREBASE =================
        async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
-           
-//link firebase--------------------------------------------------------------------------------------------------------------
-            const webFirebase = 'https://dataset-2-af456-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
+            
+            // Link 1: Kho Chính (Có cường độ, lịch sử dài)
+            const url_chinh = 'https://dataset-2-af456-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
+            // Link 2: Kho Tức Thời (10 phút, không lọc cường độ)
+            const url_nhanh = 'https://data-set-tuc-thoi-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
             
             try {
-                const response = await fetch(webFirebase, { cache: 'no-store' });
-                if (!response.ok) throw new Error("Lỗi tải dữ liệu");
+                statusLabel.innerText = "Đang đồng bộ dữ liệu...";
+                statusLabel.style.color = "blue";
+
+                // Tải song song cả 2 kho để tăng tốc độ
+                const [res1, res2] = await Promise.all([
+                    fetch(url_chinh, { cache: 'no-store' }),
+                    fetch(url_nhanh, { cache: 'no-store' })
+                ]);
+
+                if (!res1.ok || !res2.ok) throw new Error("Lỗi mạng khi kết nối máy chủ");
                 
-                const db = await response.json();
-                if (db) {
-                    let combinedArray = [];
-                    
-                    if (db.temp) combinedArray = combinedArray.concat(Object.values(db.temp));
-                    if (db.full) combinedArray = combinedArray.concat(Object.values(db.full));
+                const db1 = await res1.json() || {};
+                const db2 = await res2.json() || {};
+                
+                // Dùng Map để chống trùng lặp điểm sét
+                let combinedMap = new Map(); 
+
+                function processDB(db, sourceName) {
+                    let tempArr = [];
+                    // Bóc tách dữ liệu theo các nhánh
+                    if (db.temp) tempArr = tempArr.concat(Object.values(db.temp));
+                    if (db.full) tempArr = tempArr.concat(Object.values(db.full));
                     
                     for (let key in db) {
                         if (key !== 'temp' && key !== 'full' && db[key] && typeof db[key] === 'object') {
-                            let item = db[key];
-                            if (item.t !== undefined) {
-                                combinedArray.push({
+                            tempArr.push(db[key]);
+                        }
+                    }
+                    
+                    tempArr.forEach(item => {
+                        if (item.t !== undefined) {
+                            // Tạo key duy nhất: Thời gian_Vĩ độ_Kinh độ
+                            const uniqueKey = `${item.t}_${parseFloat(item.lat).toFixed(3)}_${parseFloat(item.lng).toFixed(3)}`;
+                            
+                            // Nếu trùng, ưu tiên giữ lại điểm CÓ CƯỜNG ĐỘ (g khác 0)
+                            if (combinedMap.has(uniqueKey)) {
+                                const existingItem = combinedMap.get(uniqueKey);
+                                if (existingItem.giatri === 0 && item.g !== 0 && item.g !== undefined) {
+                                    existingItem.giatri = item.g;
+                                    existingItem.src = "Cảm biến Tổng hợp"; // Gắn mác lại nguồn xịn
+                                }
+                            } else {
+                                combinedMap.set(uniqueKey, {
                                     lat: item.lat,
                                     lng: item.lng,
                                     giatri: item.g !== undefined ? item.g : 0,
                                     timestamp: item.t,
                                     loaiset: item.l !== undefined ? item.l : 0, 
-                                    src: item.src ? item.src : "Cảm biến Tổng hợp",
+                                    src: item.src ? item.src : sourceName,
                                     is_new_format: true
                                 });
                             }
                         }
-                    }
-                    
-                    lightningArray = combinedArray.sort((a, b) => b.timestamp - a.timestamp);
-                    filterLightning(true);
+                    });
                 }
-                statusLabel.innerText = "Hoạt động tốt (Đã gộp Cũ & Mới)";
+
+                // Xử lý kho tức thời trước, sau đó lấy kho chính đè lên (nếu trùng) để lấy thông số cường độ chuẩn
+                processDB(db2, "Sét Tức Thời");
+                processDB(db1, "Cảm biến Tổng hợp");
+
+                // Biến Map trở lại thành mảng và sắp xếp thời gian
+                lightningArray = Array.from(combinedMap.values()).sort((a, b) => b.timestamp - a.timestamp);
+                
+                filterLightning(true);
+                
+                statusLabel.innerText = "Hoạt động tốt (Đã gộp 2 kho dữ liệu)";
                 statusLabel.style.color = "green";
                 
             } catch (error) {
@@ -946,7 +962,7 @@
                             
                             <hr style="margin:6px 0; border: 0; border-top: 1px dashed #ccc;">
                             <div style="text-align: center; margin-top: 5px; margin-bottom: 2px;">
-                               <a href="https://www.google.com/maps?q=${strike.lat},${strike.lng}" target="_blank" style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; border-radius: 4px; display: inline-block; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                <a href="https://www.google.com/maps/search/?api=1&query=$${strike.lat},${strike.lng}" target="_blank" style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; border-radius: 4px; display: inline-block; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
                                     📍 Mở Google Maps
                                 </a>
                             </div>
