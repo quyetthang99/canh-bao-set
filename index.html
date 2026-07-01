@@ -744,41 +744,74 @@
             setTimeout(() => { L.popup().setLatLng([lat, lng]).setContent(`<b style="color:#0056b3; font-size:14px;">🎯 Vị trí tìm kiếm:</b><br>${name}`).openOn(map); }, 1500);
         }
 
+        // ================= TẢI DỮ LIỆU TỪ 2 KHO THEO PHÂN LỚP THỜI GIAN =================
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
-            const webFirebase = 'https://dataset-2-af456-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
+            const url_chinh = 'https://dataset-2-af456-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
+            const url_nhanh = 'https://data-set-tuc-thoi-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
             
             try {
-                const response = await fetch(webFirebase, { cache: 'no-store' });
-                if (!response.ok) throw new Error("Lỗi tải dữ liệu");
+                statusLabel.innerText = "Đang đồng bộ dòng dữ liệu...";
+                statusLabel.style.color = "blue";
+
+                const [res1, res2] = await Promise.all([
+                    fetch(url_chinh, { cache: 'no-store' }),
+                    fetch(url_nhanh, { cache: 'no-store' })
+                ]);
+
+                if (!res1.ok || !res2.ok) throw new Error("Lỗi tải dữ liệu");
                 
-                const db = await response.json();
-                if (db) {
-                    let combinedArray = [];
-                    
-                    if (db.temp) combinedArray = combinedArray.concat(Object.values(db.temp));
-                    if (db.full) combinedArray = combinedArray.concat(Object.values(db.full));
-                    
-                    for (let key in db) {
-                        if (key !== 'temp' && key !== 'full' && db[key] && typeof db[key] === 'object') {
-                            let item = db[key];
-                            if (item.t !== undefined) {
-                                combinedArray.push({
-                                    lat: item.lat,
-                                    lng: item.lng,
-                                    giatri: item.g !== undefined ? item.g : 0,
-                                    timestamp: item.t,
-                                    loaiset: item.l !== undefined ? item.l : 0, 
-                                    src: item.src ? item.src : "Cảm biến Tổng hợp",
-                                    is_new_format: true
-                                });
-                            }
+                const db_chinh = await res1.json() || {};
+                const db_nhanh = await res2.json() || {};
+                
+                let combinedArray = [];
+                const current_ts = Math.floor(Date.now() / 1000);
+                const threshold_30min = current_ts - 1800; // Mốc 30 phút = 1800 giây
+
+                // 1. NẠP TOÀN BỘ DỮ LIỆU KHO CHÍNH (Dữ liệu gốc, ổn định, có kA)
+                if (db_chinh.temp) combinedArray = combinedArray.concat(Object.values(db_chinh.temp));
+                if (db_chinh.full) combinedArray = combinedArray.concat(Object.values(db_chinh.full));
+                
+                for (let key in db_chinh) {
+                    if (key !== 'temp' && key !== 'full' && db_chinh[key] && typeof db_chinh[key] === 'object') {
+                        let item = db_chinh[key];
+                        if (item.t !== undefined) {
+                            combinedArray.push({
+                                lat: item.lat,
+                                lng: item.lng,
+                                giatri: item.g !== undefined ? item.g : 0,
+                                timestamp: item.t,
+                                loaiset: item.l !== undefined ? item.l : 0, 
+                                src: item.src ? item.src : "Cảm biến Tổng hợp",
+                                is_new_format: true
+                            });
                         }
                     }
-                    
-                    lightningArray = combinedArray.sort((a, b) => b.timestamp - a.timestamp);
-                    filterLightning(true);
                 }
+
+                // 2. NẠP KHO TỨC THỜI (BẮT BUỘC CHỈ LẤY TRONG KHUNG 30 PHÚT QUA ĐỂ BÙ KHOẢNG MÙ)
+                for (let key in db_nhanh) {
+                    let item = db_nhanh[key];
+                    if (item && typeof item === 'object' && item.t !== undefined) {
+                        // Chỉ đẩy dữ liệu lên bản đồ nếu tia sét thuộc 30 phút trở lại đây
+                        if (item.t >= threshold_30min) {
+                            combinedArray.push({
+                                lat: item.lat,
+                                lng: item.lng,
+                                giatri: item.g !== undefined ? item.g : 0,
+                                timestamp: item.t,
+                                loaiset: item.l !== undefined ? item.l : 0, 
+                                src: "Sét Tức Thời (<30p)",
+                                is_new_format: true
+                            });
+                        }
+                    }
+                }
+                
+                // Sắp xếp thứ tự thời gian mới nhất lên đầu mảng
+                lightningArray = combinedArray.sort((a, b) => b.timestamp - a.timestamp);
+                filterLightning(true);
+                
                 statusLabel.innerText = "Hoạt động tốt";
                 statusLabel.style.color = "green";
                 
@@ -881,7 +914,6 @@
                     if (!isInside) continue; 
 
                     const dateObj = new Date(record.timestamp * 1000);
-                    // Cấu hình múi giờ Hồ Chí Minh chuẩn không phụ thuộc thiết bị
                     const options = { 
                         timeZone: 'Asia/Ho_Chi_Minh',
                         hour: '2-digit', minute: '2-digit', second: '2-digit',
