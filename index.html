@@ -32,7 +32,7 @@
         .popup-custom { max-height: 200px; overflow-y: auto; font-size: 13px; }
         .popup-custom b { color: #0056b3; }
         .filter-section { margin-top: 10px; padding-top: 5px; }
-        select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #aaa; font-weight: bold; cursor: pointer; margin-bottom: 8px; }
+        .filter-section select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #aaa; font-weight: bold; cursor: pointer; margin-bottom: 8px; }
         
         .btn-excel { background-color: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; margin-top: 5px; transition: 0.2s; }
         .btn-excel:hover { background-color: #218838; }
@@ -63,18 +63,12 @@
         
         /* CSS CHO NHÃN TÊN CỘT ĐIỆN */
         .custom-label-container { background: transparent; border: none; box-shadow: none; }
-        .pole-name-label {
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid #17a2b8;
-            border-radius: 3px;
-            padding: 2px 4px;
-            font-size: 10px;
-            font-weight: bold;
-            color: #0056b3;
-            white-space: nowrap;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            pointer-events: none;
-        }
+        .pole-name-label { background: rgba(255, 255, 255, 0.9); border: 1px solid #17a2b8; border-radius: 3px; padding: 2px 4px; font-size: 10px; font-weight: bold; color: #0056b3; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,0.2); pointer-events: none; }
+
+        /* CSS BẢNG KẾT QUẢ ĐƯỜNG DÂY */
+        .table-ketqua { width: 100%; border-collapse: collapse; font-size: 11px; text-align: center; }
+        .table-ketqua th { background: #f1f8ff; border: 1px solid #cce5ff; padding: 4px; position: sticky; top: 0; }
+        .table-ketqua td { border: 1px solid #cce5ff; padding: 4px; }
     </style>
 </head>
 <body>
@@ -128,7 +122,7 @@
 
             <div id="premium-features" style="display: none;">
                 <div style="background: #fff0f0; border: 1px solid #ffcccc; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-                    <label style="font-weight:bold; color:#d32f2f; display:block; margin-bottom: 8px; border-bottom: 1px solid #ffcccc; padding-bottom: 4px;">⏳ Tìm sét theo khung giờ:</label>
+                    <label style="font-weight:bold; color:#d32f2f; display:block; margin-bottom: 8px; border-bottom: 1px solid #ffcccc; padding-bottom: 4px;">⏳ Tìm sét theo khung giờ & Đường dây:</label>
                     <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
                         <span>Từ:</span>
                         <input type="datetime-local" id="start-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
@@ -137,9 +131,35 @@
                         <span>Đến:</span>
                         <input type="datetime-local" id="end-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
                     </div>
-                    <div style="display: flex; gap: 6px;">
+                    
+                    <div style="margin-bottom: 8px;">
+                        <label style="font-weight:bold; color:#0056b3; font-size: 11px;">Tên đường dây / Lộ (Tùy chọn):</label>
+                        <input type="text" id="line-name-input" placeholder="VD: 375E20.40" style="width: 100%; padding: 4px; border: 1px solid #99c2ff; border-radius: 3px; font-size: 11px; box-sizing: border-box;">
+                    </div>
+                    
+                    <div style="display: flex; gap: 6px; margin-bottom: 10px;">
                         <button onclick="filterLightning()" style="background:#28a745; color:white; border:none; padding:6px; border-radius:3px; flex:1; cursor:pointer; font-weight:bold; font-size:11px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: 0.2s;">🔍 Tìm kiếm</button>
                         <button onclick="clearTimeFilter()" style="background:#6c757d; color:white; border:none; padding:6px; border-radius:3px; flex:1; cursor:pointer; font-weight:bold; font-size:11px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: 0.2s;">✖ Hủy lọc</button>
+                    </div>
+
+                    <div id="line-search-result-wrapper" style="display: none; background: #fff; border: 1px dashed #28a745; padding: 5px; border-radius: 4px; margin-bottom: 5px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <b style="font-size: 11px; color: #28a745;">Kết quả đường dây</b>
+                            <button onclick="exportLineExcel()" style="background:#17a2b8; color:white; border:none; border-radius:3px; padding:3px 6px; font-size:10px; cursor:pointer; font-weight:bold;">⬇ Xuất Excel</button>
+                        </div>
+                        <div style="max-height: 150px; overflow-y: auto;">
+                            <table class="table-ketqua" id="line-search-table">
+                                <thead>
+                                    <tr>
+                                        <th>Thời gian</th>
+                                        <th>kA</th>
+                                        <th>Cột</th>
+                                        <th>Cách(m)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="line-search-tbody"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -496,12 +516,12 @@
                                     let p = "<div class='popup-custom'><b>Thông Tin Thiết Bị</b><hr style='margin:5px 0'>";
                                     p += `<hr style="margin:6px 0; border: 0; border-top: 1px dashed #ccc;">
                                           <div style="text-align: center; margin-top: 5px; margin-bottom: 2px;">
-                                              <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" 
+                                              <a href="https://www.google.com/maps?q=$${lat},${lng}" target="_blank" 
                                                  style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; border-radius: 4px; display: block; width: 90%; margin: 0 auto; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
                                                  📍 Đường đến cột (Google Maps)
                                               </a>
                                           </div>`;
-                                    for (const k in f.properties) if(f.properties[k] !== null) p += `<b>${k}:</b> ${f.properties[k]}<br>`;    
+                                    for (const k in f.properties) if(f.properties[k] !== null) p += `<b>${k}:</b> ${f.properties[k]}<br>`;   
                                     layer.bindPopup(p + "</div>");
                                 }
                             }
@@ -699,6 +719,7 @@
 
         // ================= LOGIC XỬ LÝ SÉT VÀ TÌM KIẾM =================
         let currentExportData = [];
+        let lineSearchExportData = []; // Dữ liệu riêng biệt dành xuất Excel cho đường dây
         let lightningArray = []; 
 
         function searchPoles() {
@@ -744,7 +765,7 @@
             setTimeout(() => { L.popup().setLatLng([lat, lng]).setContent(`<b style="color:#0056b3; font-size:14px;">🎯 Vị trí tìm kiếm:</b><br>${name}`).openOn(map); }, 1500);
         }
 
-        // ================= TẢI DỮ LIỆU TỪ 2 KHO THEO PHÂN LỚP THỜI GIAN =================
+        // ================= TẢI DỮ LIỆU TỪ 2 KHO =================
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
             const url_chinh = 'https://dataset-2-af456-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
@@ -766,9 +787,8 @@
                 
                 let combinedArray = [];
                 const current_ts = Math.floor(Date.now() / 1000);
-                const threshold_30min = current_ts - 1800; // Mốc 30 phút = 1800 giây
+                const threshold_30min = current_ts - 1800;
 
-                // 1. NẠP TOÀN BỘ DỮ LIỆU KHO CHÍNH (Dữ liệu gốc, ổn định, có kA)
                 if (db_chinh.temp) combinedArray = combinedArray.concat(Object.values(db_chinh.temp));
                 if (db_chinh.full) combinedArray = combinedArray.concat(Object.values(db_chinh.full));
                 
@@ -777,8 +797,7 @@
                         let item = db_chinh[key];
                         if (item.t !== undefined) {
                             combinedArray.push({
-                                lat: item.lat,
-                                lng: item.lng,
+                                lat: item.lat, lng: item.lng,
                                 giatri: item.g !== undefined ? item.g : 0,
                                 timestamp: item.t,
                                 loaiset: item.l !== undefined ? item.l : 0, 
@@ -789,15 +808,12 @@
                     }
                 }
 
-                // 2. NẠP KHO TỨC THỜI (BẮT BUỘC CHỈ LẤY TRONG KHUNG 30 PHÚT QUA ĐỂ BÙ KHOẢNG MÙ)
                 for (let key in db_nhanh) {
                     let item = db_nhanh[key];
                     if (item && typeof item === 'object' && item.t !== undefined) {
-                        // Chỉ đẩy dữ liệu lên bản đồ nếu tia sét thuộc 30 phút trở lại đây
                         if (item.t >= threshold_30min) {
                             combinedArray.push({
-                                lat: item.lat,
-                                lng: item.lng,
+                                lat: item.lat, lng: item.lng,
                                 giatri: item.g !== undefined ? item.g : 0,
                                 timestamp: item.t,
                                 loaiset: item.l !== undefined ? item.l : 0, 
@@ -808,7 +824,6 @@
                     }
                 }
                 
-                // Sắp xếp thứ tự thời gian mới nhất lên đầu mảng
                 lightningArray = combinedArray.sort((a, b) => b.timestamp - a.timestamp);
                 filterLightning(true);
                 
@@ -822,6 +837,7 @@
             }
         }
 
+        // HÀM XUẤT EXCEL CHO BẢNG KẾT QUẢ KHOANH VÙNG ĐA GIÁC
         function exportExcel() {
             if (!currentExportData || currentExportData.length === 0) { alert("Không có dữ liệu điểm sét nào trong vùng để xuất báo cáo!"); return; }
             let csvContent = "\uFEFFSTT,Vĩ Độ,Kinh Độ,Thời Gian Ghi Nhận,Cường Độ,Loại Sét,Nguồn Sét,Cột Gần Nhất,Khoảng Cách\n";
@@ -834,9 +850,23 @@
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
+        // HÀM XUẤT EXCEL CHO BẢNG TÌM THEO ĐƯỜNG DÂY
+        function exportLineExcel() {
+            if (lineSearchExportData.length === 0) { alert("Không có dữ liệu để xuất!"); return; }
+            let csvContent = "\uFEFFThời Gian,Cường Độ (kA),Tên Thiết Bị / Cột,Khoảng Cách (m),Vĩ Độ,Kinh Độ\n";
+            lineSearchExportData.forEach((row) => {
+                csvContent += `"${row.time}",${row.giatri},"${row.pole}",${row.distRaw},${row.lat},${row.lng}\n`;
+            });
+            const link = document.createElement("a");
+            link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })));
+            link.setAttribute("download", "Set_Quanh_Duong_Day.csv");
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
         function clearTimeFilter() {
             document.getElementById('start-time').value = '';
             document.getElementById('end-time').value = '';
+            document.getElementById('line-name-input').value = ''; // Xóa luôn khung nhập đường dây
             filterLightning(); 
         }
 
@@ -856,6 +886,11 @@
             let customEndTS = endTimeVal ? new Date(endTimeVal).getTime() / 1000 : Infinity;
             let isCustomTime = isLoggedIn && (startTimeVal || endTimeVal); 
 
+            // LOGIC MỚI: TÌM KIẾM SÉT THEO ĐƯỜNG DÂY
+            let lineQuery = document.getElementById('line-name-input') ? document.getElementById('line-name-input').value.trim().toLowerCase() : "";
+            let matchedPoleCollection = null;
+            lineSearchExportData = []; // Làm rỗng danh sách kết quả trước mỗi lần lọc
+
             if (autoZoom) {
                 if (selectedProvince === "all") map.setView([16.5, 105.0], 6); 
                 else if (provinceBounds[selectedProvince]) {
@@ -874,6 +909,20 @@
                         activePoleFeatures = activePoleFeatures.concat(poleFeaturesByLayer[key]);
                     }
                 }
+                
+                // Chuẩn bị danh sách Cột cho Đường Dây tìm kiếm
+                if (lineQuery.length > 0) {
+                    let matchedPoles = activePoleFeatures.filter(p => detectPoleName(p.properties).toLowerCase().includes(lineQuery));
+                    if (matchedPoles.length === 0) {
+                        alert("⚠ Không tìm thấy thiết bị nào khớp với: '" + lineQuery + "'.\nVui lòng BẬT đúng Lớp Lưới Điện tương ứng ở menu bên trái!");
+                        document.getElementById('line-search-result-wrapper').style.display = "none";
+                        return;
+                    }
+                    matchedPoleCollection = turf.featureCollection(matchedPoles);
+                }
+            } else if (lineQuery.length > 0) {
+                alert("Vui lòng đăng nhập để sử dụng tính năng tìm kiếm theo đường dây!");
+                return;
             }
 
             for (let i = 0; i < lightningArray.length; i++) {
@@ -923,12 +972,44 @@
 
                     let nearestPoleName = isLoggedIn ? "Chưa bật lưới điện" : "Bản đồ khách (Chưa có quyền)";
                     let distSetToCot = "N/A";
-                    if (isLoggedIn && activePoleFeatures.length > 0) {
-                        const poleCollection = turf.featureCollection(activePoleFeatures);
-                        const nearestPoleFeature = turf.nearestPoint(pt, poleCollection);
-                        nearestPoleName = detectPoleName(nearestPoleFeature.properties);
-                        const dS2C = turf.distance(pt, nearestPoleFeature, {units: 'meters'});
-                        distSetToCot = `${dS2C.toFixed(1)} m`;
+                    let isNearTargetLine = true; // Biến kiểm tra xem sét có gần đường dây yêu cầu không
+                    let distRaw = 0;
+
+                    if (isLoggedIn) {
+                        if (lineQuery.length > 0 && matchedPoleCollection) {
+                            // CHẾ ĐỘ TÌM THEO ĐƯỜNG DÂY: Chỉ đo khoảng cách tới các cột trong đường dây đang tìm
+                            const nearestPoleFeature = turf.nearestPoint(pt, matchedPoleCollection);
+                            nearestPoleName = detectPoleName(nearestPoleFeature.properties);
+                            distRaw = turf.distance(pt, nearestPoleFeature, {units: 'meters'});
+                            distSetToCot = `${distRaw.toFixed(1)} m`;
+
+                            if (distRaw > 5000) { // Bỏ qua nếu cách xa cột thuộc lộ này quá 5km
+                                isNearTargetLine = false;
+                            }
+                        } else if (activePoleFeatures.length > 0) {
+                            // CHẾ ĐỘ BÌNH THƯỜNG: Tìm cột gần nhất trong toàn bộ lưới điện đang bật
+                            const poleCollection = turf.featureCollection(activePoleFeatures);
+                            const nearestPoleFeature = turf.nearestPoint(pt, poleCollection);
+                            nearestPoleName = detectPoleName(nearestPoleFeature.properties);
+                            distRaw = turf.distance(pt, nearestPoleFeature, {units: 'meters'});
+                            distSetToCot = `${distRaw.toFixed(1)} m`;
+                        }
+                    }
+
+                    // Nếu đang dùng chức năng tìm đường dây mà điểm sét này ở quá xa (trên 5km) -> Bỏ qua
+                    if (lineQuery.length > 0 && !isNearTargetLine) continue;
+
+                    // Thêm vào danh sách xuất Excel đặc biệt của đường dây
+                    if (lineQuery.length > 0) {
+                        lineSearchExportData.push({
+                            time: timeString,
+                            giatri: strike.giatri,
+                            pole: nearestPoleName,
+                            dist: distSetToCot,
+                            distRaw: distRaw.toFixed(1),
+                            lat: strike.lat,
+                            lng: strike.lng
+                        });
                     }
 
                     insidePolygonData.push({
@@ -954,7 +1035,7 @@
                             
                             <hr style="margin:6px 0; border: 0; border-top: 1px dashed #ccc;">
                             <div style="text-align: center; margin-top: 5px; margin-bottom: 2px;">
-                                <a href="https://www.google.com/maps?q=${strike.lat},${strike.lng}" target="_blank" style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; border-radius: 4px; display: inline-block; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                <a href="https://www.google.com/maps?q=$${strike.lat},${strike.lng}" target="_blank" style="color: #0056b3; text-decoration: none; font-weight: bold; font-size: 13px; padding: 4px 8px; border: 1px solid #cce5ff; background-color: #f8fbff; border-radius: 4px; display: inline-block; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
                                     📍 Mở Google Maps
                                 </a>
                             </div>
@@ -971,6 +1052,35 @@
             document.getElementById('ic-count').innerText = icCount;
             currentExportData = insidePolygonData;
 
+            // XỬ LÝ GIAO DIỆN HIỂN THỊ KẾT QUẢ TÌM ĐƯỜNG DÂY
+            if (lineQuery.length > 0) {
+                let tbody = document.getElementById('line-search-tbody');
+                tbody.innerHTML = "";
+                
+                // Sắp xếp theo thứ tự ưu tiên: khoảng cách gần nhất
+                lineSearchExportData.sort((a, b) => parseFloat(a.distRaw) - parseFloat(b.distRaw));
+
+                lineSearchExportData.forEach(row => {
+                    let intensityColor = (row.giatri === "Không có DL") ? "#777" : "#d32f2f";
+                    let shortTime = row.time.split(' ')[0]; // Chỉ lấy đoạn giờ HH:MM:SS
+                    tbody.innerHTML += `<tr>
+                        <td style="white-space: nowrap;">${shortTime}</td>
+                        <td style="color:${intensityColor}; font-weight:bold;">${row.giatri}</td>
+                        <td style="max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${row.pole}">${row.pole}</td>
+                        <td style="color:red; font-weight:bold;">${row.dist}</td>
+                    </tr>`;
+                });
+
+                if (lineSearchExportData.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" style="color:#777; padding: 10px;">An toàn: Không có sét đánh trong bán kính 5km của ${lineQuery.toUpperCase()}</td></tr>`;
+                }
+
+                document.getElementById('line-search-result-wrapper').style.display = "block";
+            } else {
+                document.getElementById('line-search-result-wrapper').style.display = "none";
+            }
+
+            // XỬ LÝ GIAO DIỆN BẢNG BÁO CÁO KHOANH VÙNG ĐA GIÁC BÌNH THƯỜNG
             if (isLoggedIn && activePolygonLayer) {
                 let tableRowsHtml = "";
                 insidePolygonData.forEach((item) => {
