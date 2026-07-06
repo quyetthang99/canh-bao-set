@@ -123,14 +123,12 @@
             <div id="premium-features" style="display: none;">
                 <div style="background: #fff0f0; border: 1px solid #ffcccc; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
                     <label style="font-weight:bold; color:#d32f2f; display:block; margin-bottom: 8px; border-bottom: 1px solid #ffcccc; padding-bottom: 4px;">⏳ Tìm sét theo khung giờ & Đường dây:</label>
-                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
-                        <span>Từ:</span>
-                        <input type="datetime-local" id="start-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
-                    </div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 10px;">
-                        <span>Đến:</span>
-                        <input type="datetime-local" id="end-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
-                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 5px; margin-bottom: 10px;">
+                    <input type="date" id="filter-date" style="flex: 1.5; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;" title="Chọn ngày">
+                    <input type="time" id="start-time-only" style="flex: 1; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;" title="Từ giờ">
+                    <span style="font-size: 12px; font-weight: bold;">-</span>
+                    <input type="time" id="end-time-only" style="flex: 1; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;" title="Đến giờ">
+                </div>
                     
                     <div style="margin-bottom: 8px;">
                         <label style="font-weight:bold; color:#0056b3; font-size: 11px;">Tên đường dây / Lộ (Tùy chọn):</label>
@@ -864,8 +862,9 @@
         }
 
         function clearTimeFilter() {
-            document.getElementById('start-time').value = '';
-            document.getElementById('end-time').value = '';
+            document.getElementById('filter-date').value = '';
+            document.getElementById('start-time-only').value = '';
+            document.getElementById('end-time-only').value = '';
             document.getElementById('line-name-input').value = ''; // Xóa luôn khung nhập đường dây
             filterLightning(); 
         }
@@ -880,11 +879,13 @@
             const showCG = document.getElementById('chk-cg').checked;
             const showIC = document.getElementById('chk-ic').checked;
 
-            let startTimeVal = document.getElementById('start-time').value;
-            let endTimeVal = document.getElementById('end-time').value;
-            let customStartTS = startTimeVal ? new Date(startTimeVal).getTime() / 1000 : 0;
-            let customEndTS = endTimeVal ? new Date(endTimeVal).getTime() / 1000 : Infinity;
-            let isCustomTime = isLoggedIn && (startTimeVal || endTimeVal); 
+            let filterDate = document.getElementById('filter-date') ? document.getElementById('filter-date').value : '';
+            let startTimeOnly = document.getElementById('start-time-only') ? document.getElementById('start-time-only').value : '';
+            let endTimeOnly = document.getElementById('end-time-only') ? document.getElementById('end-time-only').value : '';
+
+            let customStartTS = (filterDate && startTimeOnly) ? new Date(`${filterDate}T${startTimeOnly}`).getTime() / 1000 : 0;
+            let customEndTS = (filterDate && endTimeOnly) ? new Date(`${filterDate}T${endTimeOnly}`).getTime() / 1000 : Infinity;
+            let isCustomTime = isLoggedIn && filterDate && (startTimeOnly || endTimeOnly); 
 
             // LOGIC MỚI: TÌM KIẾM SÉT THEO ĐƯỜNG DÂY
             let lineQuery = document.getElementById('line-name-input') ? document.getElementById('line-name-input').value.trim().toLowerCase() : "";
