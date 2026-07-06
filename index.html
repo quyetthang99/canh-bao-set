@@ -966,45 +966,44 @@
                 
                 // NẾU TÌM ĐƯỜNG DÂY -> LỌC RA VÀ TÔ MÀU ĐƯỜNG DÂY ĐÓ
                 if (lineQuery.length > 0) {
-                    let matchedPoles = activePoleFeatures.filter(p => {
-                        let props = p.properties || {};
-                        let ten = (props.tenDoiTuong || props.TenDoiTuong || props.tenDoiTuon || props.TEN_DOI_TUONG || "").toLowerCase();
-                        let sh = (props.soHieu || props.SoHieu || props.SO_HIEU || "").toLowerCase();
-                        
-                        if (sh.includes("lda")) {
-                            if (sh.includes(lineQuery)) return true;
-                            if (ten.includes(lineQuery) && !ten.includes("cot")) return true;
-                        }
-                        return false;
-                    });
-                    
-                    if (matchedPoles.length === 0) {
-                        alert("⚠ Không tìm thấy thiết bị nào khớp với: '" + lineQuery + "'.\nVui lòng BẬT đúng Lớp Lưới Điện tương ứng ở menu bên trái!");
-                        document.getElementById('line-search-result-wrapper').style.display = "none";
-                        return;
-                    }
-                    matchedPoleCollection = turf.featureCollection(matchedPoles);
-
-                    // Quét toàn bộ để tô sáng đường dây và cột
                     let matchedAllForHighlight = activeAllFeatures.filter(f => {
                         let props = f.properties || {};
                         let ten = (props.tenDoiTuong || props.TenDoiTuong || props.tenDoiTuon || props.TEN_DOI_TUONG || "").toLowerCase();
                         let sh = (props.soHieu || props.SoHieu || props.SO_HIEU || "").toLowerCase();
-                        if (sh.includes("lda")) {
-                            if (sh.includes(lineQuery)) return true;
-                            if (ten.includes(lineQuery) && !ten.includes("cot")) return true;
-                        }
-                        return false;
+                        return sh.includes(lineQuery) || ten.includes(lineQuery);
                     });
 
-                    if (matchedAllForHighlight.length > 0) {
-                        L.geoJSON(matchedAllForHighlight, {
-                            style: function (f) { return { color: "#FFFF00", weight: 6, opacity: 0.9, stroke: true }; },
-                            pointToLayer: function (f, latlng) { return L.circleMarker(latlng, { radius: 6, fillColor: "#FFFF00", color: "#FF0000", weight: 2, fillOpacity: 1 }); }
-                        }).addTo(highlightGroup);
-                        
-                        // TỰ ĐỘNG ZOOM ĐẾN ĐƯỜNG DÂY
-                        map.fitBounds(highlightGroup.getBounds(), { padding: [50, 50], maxZoom: 16 });
+                    // Lọc lấy riêng các nét vẽ đường dây (LineString) để làm chuẩn, loại bỏ các điểm rác
+                    let onlyLines = matchedAllForHighlight.filter(f => f.geometry && (f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString'));
+                    if (onlyLines.length > 0) {
+                         matchedAllForHighlight = onlyLines;
+                    }
+
+                    if (matchedAllForHighlight.length === 0) {
+                        alert("⚠ Không tìm thấy thiết bị nào khớp với: '" + lineQuery + "'.\nVui lòng BẬT đúng Lớp Lưới Điện tương ứng ở menu bên trái!");
+                        document.getElementById('line-search-result-wrapper').style.display = "none";
+                        return;
+                    }
+
+                    // Chuyển tọa độ đoạn dây thành các Điểm (Point) để đo khoảng cách chính xác
+                    let pointsForDistance = [];
+                    matchedAllForHighlight.forEach(f => {
+                        if (f.geometry.type === 'Point') {
+                            pointsForDistance.push(f);
+                        } else if (f.geometry.type === 'LineString') {
+                            f.geometry.coordinates.forEach(coord => pointsForDistance.push(turf.point(coord, f.properties)));
+                        } else if (f.geometry.type === 'MultiLineString') {
+                            f.geometry.coordinates.forEach(line => line.forEach(coord => pointsForDistance.push(turf.point(coord, f.properties))));
+                        }
+                    });
+                    matchedPoleCollection = turf.featureCollection(pointsForDistance);
+
+                    // HIGHLIGHT PHÁT SÁNG VÀ ZOOM TỰ ĐỘNG
+                    L.geoJSON(matchedAllForHighlight, {
+                        style: function (f) { return { color: "#FFFF00", weight: 8, opacity: 1, stroke: true }; }
+                    }).addTo(highlightGroup);
+                    
+                    map.fitBounds(highlightGroup.getBounds(), { padding: [50, 50], maxZoom: 16 });
                     }
                 }
             } else if (lineQuery.length > 0) {
@@ -1217,27 +1216,27 @@
             
             if (query.length < 1) { suggDiv.style.display = 'none'; return; }
             
-            let activePoles = [];
+            let activeAll = [];
             for (let key in gridLayers) {
-                if (map.hasLayer(gridLayers[key]) && poleFeaturesByLayer[key]) {
-                    activePoles = activePoles.concat(poleFeaturesByLayer[key]);
+                if (map.hasLayer(gridLayers[key]) && allFeaturesByLayer[key]) {
+                    activeAll = activeAll.concat(allFeaturesByLayer[key]);
                 }
             }
             
             let uniqueMatches = new Set();
-            activePoles.forEach(p => {
-                let props = p.properties || {};
+            activeAll.forEach(f => {
+                // CHỈ GỢI Ý ĐƯỜNG DÂY: Dựa vào cấu trúc hình học (Line) thay vì chữ "LDA" hay "COT"
+                let isLine = f.geometry && (f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString');
+                if (!isLine) return; 
+
+                let props = f.properties || {};
                 let ten = props.tenDoiTuong || props.TenDoiTuong || props.tenDoiTuon || props.TEN_DOI_TUONG || "";
                 let sh = props.soHieu || props.SoHieu || props.SO_HIEU || "";
                 
-                // CHỈ GỢI Ý ĐƯỜNG DÂY: Lọc các đối tượng có số hiệu chứa "LDA" và loại bỏ chữ "COT"
-                if (sh.toLowerCase().includes("lda")) {
-                    if (sh.toLowerCase().includes(query)) uniqueMatches.add(sh.trim());
-                    if (ten.toLowerCase().includes(query) && !ten.toLowerCase().includes("cot")) {
-                        uniqueMatches.add(ten.trim());
-                    }
-                }
+                if (sh.toLowerCase().includes(query)) uniqueMatches.add(sh.trim());
+                if (ten.toLowerCase().includes(query)) uniqueMatches.add(ten.trim());
             });
+                
             
             let matches = Array.from(uniqueMatches).slice(0, 8);
             
