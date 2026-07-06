@@ -131,9 +131,10 @@
                         <input type="time" id="end-time-only" style="flex: 1; min-width: 0; padding: 4px 2px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer; box-sizing: border-box;" title="Đến giờ">
                     </div>
                     
-                    <div style="margin-bottom: 8px;">
+                    <div style="margin-bottom: 8px; position: relative;">
                         <label style="font-weight:bold; color:#0056b3; font-size: 11px;">Tên đường dây / Lộ (Tùy chọn):</label>
-                        <input type="text" id="line-name-input" placeholder="VD: 375E20.40" style="width: 100%; padding: 4px; border: 1px solid #99c2ff; border-radius: 3px; font-size: 11px; box-sizing: border-box;">
+                        <input type="text" id="line-name-input" placeholder="VD: 375E20.40" onkeyup="hienThiGoiYDuongDay()" autocomplete="off" style="width: 100%; padding: 4px; border: 1px solid #99c2ff; border-radius: 3px; font-size: 11px; box-sizing: border-box;">
+                        <div id="line-suggestions" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; max-height: 150px; overflow-y: auto; background: white; border: 1px solid #99c2ff; border-radius: 3px; z-index: 2000; box-shadow: 0 4px 8px rgba(0,0,0,0.15);"></div>
                     </div>
                     
                     <div style="display: flex; gap: 6px; margin-bottom: 10px;">
@@ -263,7 +264,7 @@
         
         let showLabels = false; 
         const labelToggleLayer = L.layerGroup(); 
-        const selectAllLayer = L.layerGroup(); // Nút công tắc tổng ảo không có icon
+        const selectAllLayer = L.layerGroup(); // Nút công tắc tổng ảo
         const labelGroups = {}; 
         
         const dienLucList = {
@@ -389,7 +390,7 @@
 
             if (isLoggedIn) {
                 activeOverlays["Hiển thị tên thiết bị"] = labelToggleLayer;
-                activeOverlays["Bật / Tắt TẤT CẢ Lưới điện"] = selectAllLayer; // THÊM LỚP TỔNG KHÔNG ICON Ở ĐÂY
+                activeOverlays["Bật / Tắt TẤT CẢ Lưới điện"] = selectAllLayer;
                 
                 for (let key in dienLucList) {
                     if (userRole === 'all' || userRole === key) {
@@ -473,7 +474,6 @@
                 return;
             }
 
-            // LOGIC KHI CLICK TÍCH TỔNG TẤT CẢ
             if (layerName === "Bật / Tắt TẤT CẢ Lưới điện") {
                 for (let key in dienLucList) {
                     if (userRole === 'all' || userRole === key) {
@@ -570,7 +570,6 @@
                 return;
             }
 
-            // LOGIC KHI BỎ TÍCH TỔNG TẤT CẢ
             if (layerName === "Bật / Tắt TẤT CẢ Lưới điện") {
                 for (let key in dienLucList) {
                     if (map.hasLayer(gridLayers[key])) {
@@ -890,6 +889,10 @@
             document.getElementById('start-time-only').value = '';
             document.getElementById('end-time-only').value = '';
             document.getElementById('line-name-input').value = '';
+            
+            let suggDiv = document.getElementById('line-suggestions');
+            if (suggDiv) { suggDiv.innerHTML = ''; suggDiv.style.display = 'none'; }
+            
             filterLightning(); 
         }
 
@@ -935,7 +938,13 @@
                 }
                 
                 if (lineQuery.length > 0) {
-                    let matchedPoles = activePoleFeatures.filter(p => detectPoleName(p.properties).toLowerCase().includes(lineQuery));
+                    let matchedPoles = activePoleFeatures.filter(p => {
+                        let props = p.properties || {};
+                        let ten = (props.tenDoiTuong || props.TenDoiTuong || props.tenDoiTuon || props.TEN_DOI_TUONG || "").toLowerCase();
+                        let sh = (props.soHieu || props.SoHieu || props.SO_HIEU || "").toLowerCase();
+                        return ten.includes(lineQuery) || sh.includes(lineQuery);
+                    });
+                    
                     if (matchedPoles.length === 0) {
                         alert("⚠ Không tìm thấy thiết bị nào khớp với: '" + lineQuery + "'.\nVui lòng BẬT đúng Lớp Lưới Điện tương ứng ở menu bên trái!");
                         document.getElementById('line-search-result-wrapper').style.display = "none";
@@ -1139,6 +1148,65 @@
                 activePolygonLayer.bindPopup(reportContent, { maxWidth: 800 }).openPopup();
             }
         }
+
+        // HÀM TỰ ĐỘNG GỢI Ý ĐƯỜNG DÂY THEO TÊN HOẶC SỐ HIỆU
+        function hienThiGoiYDuongDay() {
+            const query = document.getElementById('line-name-input').value.toLowerCase().trim();
+            const suggDiv = document.getElementById('line-suggestions');
+            suggDiv.innerHTML = '';
+            
+            if (query.length < 1) { suggDiv.style.display = 'none'; return; }
+            
+            let activePoles = [];
+            for (let key in gridLayers) {
+                if (map.hasLayer(gridLayers[key]) && poleFeaturesByLayer[key]) {
+                    activePoles = activePoles.concat(poleFeaturesByLayer[key]);
+                }
+            }
+            
+            let uniqueMatches = new Set();
+            activePoles.forEach(p => {
+                let props = p.properties || {};
+                let ten = props.tenDoiTuong || props.TenDoiTuong || props.tenDoiTuon || props.TEN_DOI_TUONG || "";
+                let sh = props.soHieu || props.SoHieu || props.SO_HIEU || "";
+                
+                if (ten.toLowerCase().includes(query)) uniqueMatches.add(ten.trim());
+                if (sh.toLowerCase().includes(query)) uniqueMatches.add(sh.trim());
+            });
+            
+            let matches = Array.from(uniqueMatches).slice(0, 8);
+            
+            if (matches.length === 0) { suggDiv.style.display = 'none'; return; }
+            
+            suggDiv.style.display = 'block';
+            matches.forEach(itemText => {
+                let row = document.createElement('div');
+                row.style.padding = '6px 8px';
+                row.style.cursor = 'pointer';
+                row.style.fontSize = '11px';
+                row.style.borderBottom = '1px dashed #eee';
+                row.style.fontWeight = 'bold';
+                row.style.color = '#333';
+                row.innerText = itemText;
+                
+                row.onclick = function() {
+                    document.getElementById('line-name-input').value = itemText;
+                    suggDiv.style.display = 'none';
+                    filterLightning(); 
+                };
+                
+                row.onmouseover = () => row.style.backgroundColor = '#e8f4ff';
+                row.onmouseout = () => row.style.backgroundColor = 'white';
+                suggDiv.appendChild(row);
+            });
+        }
+
+        document.addEventListener('click', function(e) {
+            if (e.target.id !== 'line-name-input') {
+                let div = document.getElementById('line-suggestions');
+                if (div) div.style.display = 'none';
+            }
+        });
 
         // CHẠY NGAY KHI MỞ TRANG ĐỂ KIỂM TRA PHÂN QUYỀN
         applyAuthUI();
