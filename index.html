@@ -1170,8 +1170,14 @@
                 let ten = props.tenDoiTuong || props.TenDoiTuong || props.tenDoiTuon || props.TEN_DOI_TUONG || "";
                 let sh = props.soHieu || props.SoHieu || props.SO_HIEU || "";
                 
-                if (ten.toLowerCase().includes(query)) uniqueMatches.add(ten.trim());
-                if (sh.toLowerCase().includes(query)) uniqueMatches.add(sh.trim());
+                // CHỈ GỢI Ý ĐƯỜNG DÂY: Lọc các đối tượng có số hiệu chứa "LDA" và loại bỏ chữ "COT"
+                if (sh.toLowerCase().includes("lda")) {
+                    if (sh.toLowerCase().includes(query)) uniqueMatches.add(sh.trim());
+                    // Gợi ý thêm tên Lộ (VD: XT 375-E20.40) nếu người dùng gõ tìm bằng tên
+                    if (ten.toLowerCase().includes(query) && !ten.toLowerCase().includes("cot")) {
+                        uniqueMatches.add(ten.trim());
+                    }
+                }
             });
             
             let matches = Array.from(uniqueMatches).slice(0, 8);
