@@ -40,14 +40,14 @@
         .lightning-icon-div { cursor: pointer; filter: drop-shadow(0 0 2px rgba(0,0,0,0.8)); transition: transform 0.2s; }
         .lightning-icon-div:hover { transform: scale(1.4); }
 
-        /* HIỆU ỨNG NHÁY SÁNG CHO ĐIỂM SÉT (HIGHLIGHT) */
-        .pulse-circle {
-            animation: pulse-anim 1s infinite alternate;
-            pointer-events: none;
+        /* HIỆU ỨNG PHÁT SÁNG CHO SÉT VÀ ĐƯỜNG DÂY */
+        .highlight-glow {
+            filter: drop-shadow(0 0 8px rgba(255, 0, 0, 1)) drop-shadow(0 0 15px rgba(255, 255, 0, 1));
+            animation: pulse-glow 1s infinite alternate;
         }
-        @keyframes pulse-anim {
-            0% { transform: scale(0.7); opacity: 0.4; }
-            100% { transform: scale(1.4); opacity: 1; box-shadow: 0 0 15px rgba(255, 255, 0, 0.8); }
+        @keyframes pulse-glow {
+            0% { transform: scale(1); filter: drop-shadow(0 0 5px red); }
+            100% { transform: scale(1.2); filter: drop-shadow(0 0 15px yellow) drop-shadow(0 0 25px red); }
         }
 
         /* THANH TÌM KIẾM THIẾT BỊ */
@@ -76,8 +76,8 @@
         .pole-name-label { background: rgba(255, 255, 255, 0.9); border: 1px solid #17a2b8; border-radius: 3px; padding: 2px 4px; font-size: 10px; font-weight: bold; color: #0056b3; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,0.2); pointer-events: none; }
 
         /* CSS BẢNG KẾT QUẢ ĐƯỜNG DÂY */
-        .table-ketqua { width: 100%; border-collapse: collapse; font-size: 11px; text-align: center; background: white; }
-        .table-ketqua th { background: #f1f8ff; border: 1px solid #cce5ff; padding: 4px; position: sticky; top: 0; z-index: 5; }
+        .table-ketqua { width: 100%; border-collapse: collapse; font-size: 11px; text-align: center; }
+        .table-ketqua th { background: #f1f8ff; border: 1px solid #cce5ff; padding: 4px; position: sticky; top: 0; }
         .table-ketqua td { border: 1px solid #cce5ff; padding: 4px; }
     </style>
 </head>
@@ -93,7 +93,7 @@
             <div style="position: relative; width: 90%; margin: 5px auto 10px auto;">
                 <input type="password" id="login-pass" placeholder="Mật khẩu..." style="width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-weight: bold; text-align: center;" onkeypress="if(event.key === 'Enter') checkLogin()">
                 <span id="toggle-pass" onclick="togglePassVisibility()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #555; display: flex; align-items: center;" title="Hiện/Ẩn mật khẩu">
-                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                     <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
                 </span>
             </div>
             
@@ -348,7 +348,7 @@
 
         let activePolygonGeoJSON = null; 
         let activePolygonLayer = null;
-        let highlightGroup = L.featureGroup().addTo(map); // LỚP HIGHLIGHT ĐƯỜNG DÂY VÀ ĐIỂM SÉT
+        let highlightGroup = L.featureGroup().addTo(map); // LỚP HIGHLIGHT ĐƯỜNG DÂY
 
         map.on(L.Draw.Event.CREATED, function (e) {
             drawnItems.clearLayers(); 
@@ -609,6 +609,9 @@
         
         const lightningIconRed = L.divIcon({ html: svgRed, className: 'lightning-icon-div', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12] });
         const lightningIconCloud = L.divIcon({ html: svgCloud, className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+        
+        const lightningIconRedGlow = L.divIcon({ html: svgRed, className: 'lightning-icon-div highlight-glow', iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15] });
+        const lightningIconCloudGlow = L.divIcon({ html: svgCloud, className: 'lightning-icon-div highlight-glow', iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -17] });
 
         const redStarIcon = L.divIcon({ html: '<svg width="28" height="28" viewBox="0 0 24 24"><path fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2" d="M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z"></path></svg>', className: 'lightning-icon-div', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
         const islandIcon = L.divIcon({ html: '<svg width="14" height="14" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="#ff1a1a" stroke="#ffffff" stroke-width="1.2"></circle></svg>', className: 'lightning-icon-div', iconSize: [14, 14], iconAnchor: [7, 7] });
@@ -629,19 +632,20 @@
         // ================= GIAO DIỆN & TƯƠNG TÁC =================
 
         function togglePassVisibility() {
-            const passInput = document.getElementById('login-pass');
-            const toggleIcon = document.getElementById('toggle-pass');
-            const eyeOpen = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
-            const eyeClosed = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+    const passInput = document.getElementById('login-pass');
+    const toggleIcon = document.getElementById('toggle-pass');
+    
+    const eyeOpen = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+    const eyeClosed = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
 
-            if (passInput.type === "password") {
-                passInput.type = "text";
-                toggleIcon.innerHTML = eyeOpen;
-            } else {
-                passInput.type = "password";
-                toggleIcon.innerHTML = eyeClosed;
-            }
-        }
+    if (passInput.type === "password") {
+        passInput.type = "text";
+        toggleIcon.innerHTML = eyeOpen;
+    } else {
+        passInput.type = "password";
+        toggleIcon.innerHTML = eyeClosed;
+    }
+}
 
         function applyAuthUI() {
             const authBtn = document.getElementById('auth-btn');
@@ -811,16 +815,6 @@
             setTimeout(() => { L.popup().setLatLng([lat, lng]).setContent(`<b style="color:#0056b3; font-size:14px;">🎯 Vị trí tìm kiếm:</b><br>${name}`).openOn(map); }, 1500);
         }
 
-        // HÀM CLICK ĐỂ ZOOM VÀO CỘT GẦN ĐIỂM SÉT BỊ ĐÁNH
-        function zoomToHighlightPole(lat, lng, poleName) {
-            map.flyTo([lat, lng], 18, {animate: true, duration: 1.5});
-            setTimeout(() => {
-                L.popup().setLatLng([lat, lng])
-                 .setContent(`<b style="color:#0056b3; font-size:14px;">🎯 Cột thiết bị:</b><br>${poleName}`)
-                 .openOn(map);
-            }, 1500);
-        }
-
         // ================= TẢI DỮ LIỆU TỪ FIREBASE =================
         async function fetchLightningData() {
             const statusLabel = document.getElementById('loading-status');
@@ -975,37 +969,41 @@
                 }
                 
                 if (lineQuery.length > 0) {
-                    // Lọc TẤT CẢ thuộc tính (bao gồm cả Line vẽ và Point cột) có liên quan đến từ khóa
-                    let matchedFeatures = activeAllFeatures.filter(f => {
+                    let matchedAllForHighlight = activeAllFeatures.filter(f => {
                         let props = f.properties || {};
                         let ten = (props.tenDoiTuong || props.TenDoiTuong || props.tenDoiTuon || props.TEN_DOI_TUONG || "").toLowerCase();
                         let sh = (props.soHieu || props.SoHieu || props.SO_HIEU || "").toLowerCase();
-                        return ten.includes(lineQuery) || sh.includes(lineQuery);
+                        return sh.includes(lineQuery) || ten.includes(lineQuery);
                     });
 
-                    // Lấy ra riêng các nét vẽ (Đường dây) để Highlight và Zoom
-                    let onlyLines = matchedFeatures.filter(f => f.geometry && (f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString'));
-                    // Lấy ra riêng các điểm (Cột) để đo khoảng cách sét
-                    let onlyPoles = matchedFeatures.filter(f => f.geometry && (f.geometry.type === 'Point' || f.geometry.type === 'MultiPoint'));
-
+                    let onlyLines = matchedAllForHighlight.filter(f => f.geometry && (f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString'));
                     if (onlyLines.length > 0) {
-                        L.geoJSON(onlyLines, {
-                            style: function (f) { return { color: "#FFFF00", weight: 8, opacity: 1, stroke: true }; }
-                        }).addTo(highlightGroup);
-                        
-                        map.fitBounds(highlightGroup.getBounds(), { padding: [50, 50], maxZoom: 16 });
+                         matchedAllForHighlight = onlyLines;
                     }
 
-                    // Ưu tiên dùng các cột thuộc chính đường dây đó để đo, nếu không tìm thấy cột thì dùng tất cả cột đang bật
-                    if (onlyPoles.length > 0) {
-                        matchedPoleCollection = turf.featureCollection(onlyPoles);
-                    } else if (activePoleFeatures.length > 0) {
-                        matchedPoleCollection = turf.featureCollection(activePoleFeatures);
-                    } else {
+                    if (matchedAllForHighlight.length === 0) {
                         alert("⚠ Không tìm thấy thiết bị nào khớp với: '" + lineQuery + "'.\nVui lòng BẬT đúng Lớp Lưới Điện tương ứng ở menu bên trái!");
                         document.getElementById('line-search-result-wrapper').style.display = "none";
                         return;
                     }
+
+                    let pointsForDistance = [];
+                    matchedAllForHighlight.forEach(f => {
+                        if (f.geometry.type === 'Point') {
+                            pointsForDistance.push(f);
+                        } else if (f.geometry.type === 'LineString') {
+                            f.geometry.coordinates.forEach(coord => pointsForDistance.push(turf.point(coord, f.properties)));
+                        } else if (f.geometry.type === 'MultiLineString') {
+                            f.geometry.coordinates.forEach(line => line.forEach(coord => pointsForDistance.push(turf.point(coord, f.properties))));
+                        }
+                    });
+                    matchedPoleCollection = turf.featureCollection(pointsForDistance);
+
+                    L.geoJSON(matchedAllForHighlight, {
+                        style: function (f) { return { color: "#FFFF00", weight: 8, opacity: 1, stroke: true }; }
+                    }).addTo(highlightGroup);
+                    
+                    map.fitBounds(highlightGroup.getBounds(), { padding: [50, 50], maxZoom: 16 });
                 }
             } else if (lineQuery.length > 0) {
                 alert("Vui lòng đăng nhập để sử dụng tính năng tìm kiếm theo đường dây!");
@@ -1061,9 +1059,6 @@
                     let distSetToCot = "N/A";
                     let isNearTargetLine = true; 
                     let distRaw = 0;
-                    
-                    let targetPoleLat = strike.lat; // Dùng để Zoom khi click bảng
-                    let targetPoleLng = strike.lng;
 
                     if (isLoggedIn) {
                         if (lineQuery.length > 0 && matchedPoleCollection) {
@@ -1071,14 +1066,6 @@
                             nearestPoleName = detectPoleName(nearestPoleFeature.properties);
                             distRaw = turf.distance(pt, nearestPoleFeature, {units: 'meters'});
                             distSetToCot = `${distRaw.toFixed(1)} m`;
-
-                            if (nearestPoleFeature.geometry.type === 'Point') {
-                                targetPoleLng = nearestPoleFeature.geometry.coordinates[0];
-                                targetPoleLat = nearestPoleFeature.geometry.coordinates[1];
-                            } else if (nearestPoleFeature.geometry.type === 'MultiPoint') {
-                                targetPoleLng = nearestPoleFeature.geometry.coordinates[0][0];
-                                targetPoleLat = nearestPoleFeature.geometry.coordinates[0][1];
-                            }
 
                             if (distRaw > 5000) { 
                                 isNearTargetLine = false;
@@ -1097,8 +1084,7 @@
                     if (lineQuery.length > 0) {
                         lineSearchExportData.push({
                             time: timeString, giatri: strike.giatri, pole: nearestPoleName,
-                            dist: distSetToCot, distRaw: distRaw.toFixed(1), lat: strike.lat, lng: strike.lng,
-                            poleLat: targetPoleLat, poleLng: targetPoleLng
+                            dist: distSetToCot, distRaw: distRaw.toFixed(1), lat: strike.lat, lng: strike.lng
                         });
                     }
 
@@ -1108,17 +1094,16 @@
                         poleName: nearestPoleName, distSetToCot: distSetToCot
                     });
 
-                    // CẤP BIỂU TƯỢNG SÉT (Hiển thị biểu tượng tiêu chuẩn, vẽ thêm vầng hào quang nếu đang tìm)
-                    let currentIcon = strike.loaiset === "Trong mây" ? lightningIconCloud : lightningIconRed;
-                    if (strike.loaiset === "Trong mây") icCount++; else cgCount++;
-                    let colorCode = strike.loaiset.includes("đất") ? "red" : "#ff8c00";
-
-                    // Vẽ thêm 1 vòng tròn chớp nháy màu Vàng - Đỏ dưới chân tia sét để làm nổi bật
-                    if (lineQuery.length > 0 && isNearTargetLine) {
-                        L.circleMarker([strike.lat, strike.lng], {
-                            radius: 12, color: 'red', fillColor: 'yellow', fillOpacity: 0.6, weight: 2, className: 'pulse-circle'
-                        }).addTo(highlightGroup);
+                    let currentIcon;
+                    if (strike.loaiset === "Trong mây") { 
+                        currentIcon = lightningIconCloud;
+                        icCount++; 
+                    } else { 
+                        currentIcon = lightningIconRed;
+                        cgCount++; 
                     }
+                    
+                    let colorCode = strike.loaiset.includes("đất") ? "red" : "#ff8c00";
 
                     const popupHTML = `
                         <div style="font-family: Arial; font-size: 13px; width: 230px; line-height: 1.5;">
@@ -1149,7 +1134,6 @@
             document.getElementById('chk-ic').checked ? document.getElementById('ic-count').innerText = icCount : null;
             currentExportData = insidePolygonData;
 
-            // XỬ LÝ GIAO DIỆN HIỂN THỊ KẾT QUẢ ĐƯỜNG DÂY VÀ CLICK ĐỂ ZOOM
             if (lineQuery.length > 0) {
                 let tbody = document.getElementById('line-search-tbody');
                 tbody.innerHTML = "";
@@ -1159,9 +1143,7 @@
                 lineSearchExportData.forEach(row => {
                     let intensityColor = (row.giatri === "Không có DL") ? "#777" : "#d32f2f";
                     let shortTime = row.time.split(' ')[0]; 
-                    
-                    // Thêm sự kiện onClick để Zoom vào Cột
-                    tbody.innerHTML += `<tr style="cursor: pointer; border-bottom: 1px solid #cce5ff;" onclick="zoomToHighlightPole(${row.poleLat}, ${row.poleLng}, '${row.pole}')" onmouseover="this.style.background='#e8f4ff'" onmouseout="this.style.background='white'">
+                    tbody.innerHTML += `<tr>
                         <td style="white-space: nowrap;">${shortTime}</td>
                         <td style="color:${intensityColor}; font-weight:bold;">${row.giatri}</td>
                         <td style="max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${row.pole}">${row.pole}</td>
@@ -1224,7 +1206,7 @@
             }
         }
 
-        // HÀM TỰ ĐỘNG GỢI Ý ĐƯỜNG DÂY DỰA THEO CẤU TRÚC HÌNH HỌC (LINE)
+        // HÀM TỰ ĐỘNG GỢI Ý ĐƯỜNG DÂY THEO TÊN HOẶC SỐ HIỆU
         function hienThiGoiYDuongDay() {
             const query = document.getElementById('line-name-input').value.toLowerCase().trim();
             const suggDiv = document.getElementById('line-suggestions');
@@ -1241,16 +1223,15 @@
             
             let uniqueMatches = new Set();
             activeAll.forEach(f => {
-                // CHỈ GỢI Ý ĐƯỜNG DÂY: Lọc bằng cách soi xem đối tượng có phải là Nét vẽ (Line) không, loại bỏ các điểm cột
                 let isLine = f.geometry && (f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString');
                 if (!isLine) return; 
 
                 let props = f.properties || {};
-                let ten = (props.tenDoiTuong || props.TenDoiTuong || props.tenDoiTuon || props.TEN_DOI_TUONG || "").trim();
-                let sh = (props.soHieu || props.SoHieu || props.SO_HIEU || "").trim();
+                let ten = props.tenDoiTuong || props.TenDoiTuong || props.tenDoiTuon || props.TEN_DOI_TUONG || "";
+                let sh = props.soHieu || props.SoHieu || props.SO_HIEU || "";
                 
-                if (sh.toLowerCase().includes(query)) uniqueMatches.add(sh);
-                if (ten.toLowerCase().includes(query)) uniqueMatches.add(ten);
+                if (sh.toLowerCase().includes(query)) uniqueMatches.add(sh.trim());
+                if (ten.toLowerCase().includes(query)) uniqueMatches.add(ten.trim());
             });
             
             let matches = Array.from(uniqueMatches).slice(0, 8);
