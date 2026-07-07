@@ -7,7 +7,7 @@ import hashlib
 from datetime import datetime, timezone, timedelta
 
 def crawl_lightning_data_realtime():
-    print("🚀 KHỞI ĐỘNG BOT TỨC THỜI: QUÉT SÉT (10 PHÚT QUA - KHÔNG LỌC CƯỜNG ĐỘ)...")
+    print("🚀 KHỞI ĐỘNG BOT TỨC THỜI: QUÉT SÉT (10 PHÚT QUA)")
     
     # 1. TẠO KHUNG THỜI GIAN LÙI 10 PHÚT 
     now = datetime.now(timezone.utc)
