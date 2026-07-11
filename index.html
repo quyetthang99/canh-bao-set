@@ -136,12 +136,14 @@
                 <div style="background: #fff0f0; border: 1px solid #ffcccc; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
                     <label style="font-weight:bold; color:#d32f2f; display:block; margin-bottom: 8px; border-bottom: 1px solid #ffcccc; padding-bottom: 4px;">⏳ Tìm sét theo khung giờ & Đường dây:</label>
                     
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 3px; margin-bottom: 10px; width: 100%;">
-                        <input type="date" id="filter-date" style="flex: 1.3; min-width: 0; padding: 4px 2px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer; box-sizing: border-box;" title="Chọn ngày">
-                        <input type="time" id="start-time-only" style="flex: 1; min-width: 0; padding: 4px 2px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer; box-sizing: border-box;" title="Từ giờ">
-                        <span style="font-size: 11px; font-weight: bold; margin: 0 1px;">-</span>
-                        <input type="time" id="end-time-only" style="flex: 1; min-width: 0; padding: 4px 2px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer; box-sizing: border-box;" title="Đến giờ">
-                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
+                       <span>Từ:</span>
+                       <input type="datetime-local" id="start-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
+                       </div>
+                       <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 10px;">
+                       <span>Đến:</span>
+                       <input type="datetime-local" id="end-time" style="width: 150px; padding: 4px; border: 1px solid #ff9999; border-radius: 3px; font-size: 11px; cursor: pointer;">
+                     </div>
                     
                     <div style="margin-bottom: 8px; position: relative;">
                         <label style="font-weight:bold; color:#0056b3; font-size: 11px;">Tên đường dây / Lộ (Tùy chọn):</label>
@@ -912,9 +914,8 @@
         }
 
         function clearTimeFilter() {
-            document.getElementById('filter-date').value = '';
-            document.getElementById('start-time-only').value = '';
-            document.getElementById('end-time-only').value = '';
+            document.getElementById('start-time').value = '';
+            document.getElementById('end-time').value = '';
             document.getElementById('line-name-input').value = '';
             
             let suggDiv = document.getElementById('line-suggestions');
@@ -935,13 +936,12 @@
             const showCG = document.getElementById('chk-cg').checked;
             const showIC = document.getElementById('chk-ic').checked;
 
-            let filterDate = document.getElementById('filter-date') ? document.getElementById('filter-date').value : '';
-            let startTimeOnly = document.getElementById('start-time-only') ? document.getElementById('start-time-only').value : '';
-            let endTimeOnly = document.getElementById('end-time-only') ? document.getElementById('end-time-only').value : '';
+            let startTimeVal = document.getElementById('start-time') ? document.getElementById('start-time').value : '';
+            let endTimeVal = document.getElementById('end-time') ? document.getElementById('end-time').value : '';
 
-            let customStartTS = (filterDate && startTimeOnly) ? new Date(`${filterDate}T${startTimeOnly}`).getTime() / 1000 : 0;
-            let customEndTS = (filterDate && endTimeOnly) ? new Date(`${filterDate}T${endTimeOnly}`).getTime() / 1000 : Infinity;
-            let isCustomTime = isLoggedIn && filterDate && (startTimeOnly || endTimeOnly);
+            let customStartTS = startTimeVal ? new Date(startTimeVal).getTime() / 1000 : 0;
+            let customEndTS = endTimeVal ? new Date(endTimeVal).getTime() / 1000 : Infinity;
+            let isCustomTime = isLoggedIn && (startTimeVal || endTimeVal);
 
             let lineQuery = document.getElementById('line-name-input') ? document.getElementById('line-name-input').value.trim().toLowerCase() : "";
             let matchedPoleCollection = null;
