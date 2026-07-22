@@ -9,13 +9,14 @@ from datetime import datetime, timezone, timedelta
 # =========================================================================
 # HÀM KIỂM TRA TRÙNG LẶP THÔNG MINH (LỌC SAI SỐ GIỮA CÁC NGUỒN SÉT)
 # =========================================================================
-def kiem_tra_trung_lap(new_lat, new_lng, new_ts, db_data):
+def kiem_tra_trung_lap(new_lat, new_lng, new_ts, db_data, updates):
     """
-    So sánh điểm sét mới với kho dữ liệu hiện có.
-    Nếu lệch thời gian <= 5 giây VÀ lệch tọa độ <= 0.002 độ (~200m) -> Coi là Trùng lặp
+    So sánh điểm sét mới với kho dữ liệu.
+    Bỏ qua những điểm đã bị đánh dấu xóa (updates[k] = None)
     """
     for k, v in db_data.items():
-        if v is None: continue
+        if v is None or updates.get(k) is None: 
+            continue
         old_lat = v.get("lat", 0)
         old_lng = v.get("lng", 0)
         old_ts = v.get("t", 0)
@@ -60,7 +61,7 @@ def crawl_lightning_data_realtime():
     # FIREBASE ĐÍCH MỚI
     FIREBASE_URL = "https://data-set-tuc-thoi-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
     
-    # 2. TẢI BỘ NHỚ TỪ FIREBASE ĐỂ TRÁNH TRÙNG LẶP
+    # 2. TẢI BỘ NHỚ TỪ FIREBASE 
     db_data = {}
     try:
         print("Đang kết nối Firebase...")
@@ -72,6 +73,36 @@ def crawl_lightning_data_realtime():
 
     updates = {}
     diem_moi = 0
+
+    # =========================================================================
+    # BƯỚC 2.5: DỌN DẸP CÁC ĐIỂM TRÙNG LẶP ĐÃ TỒN TẠI TRÊN FIREBASE
+    # =========================================================================
+    print("\n[LỌC RÁC] Đang quét các điểm bị trùng có sẵn trên Firebase...")
+    diem_trung_cu = 0
+    keys_to_keep = []
+    
+    for k1, v1 in db_data.items():
+        if v1 is None: continue
+        is_duplicate = False
+        
+        # So sánh với các điểm đã quyết định giữ lại
+        for k2 in keys_to_keep:
+            v2 = db_data[k2]
+            # Nếu lệch thời gian < 5s và tọa độ < 200m thì coi là Trùng
+            if abs(v1["t"] - v2["t"]) <= 5 and abs(v1["lat"] - v2["lat"]) <= 0.002 and abs(v1["lng"] - v2["lng"]) <= 0.002:
+                is_duplicate = True
+                break
+                
+        if is_duplicate:
+            updates[k1] = None  # Đánh dấu để XÓA trên Firebase
+            diem_trung_cu += 1
+        else:
+            keys_to_keep.append(k1)
+            
+    if diem_trung_cu > 0:
+        print(f"🧹 Đã phát hiện và sẽ xóa {diem_trung_cu} điểm sét trùng lặp lưu từ trước.")
+    else:
+        print("✨ Cơ sở dữ liệu Firebase hiện tại đang sạch sẽ, không có điểm trùng.")
 
     # LUỒNG 1: CÀO HYMETNET
     print("\n[LUỒNG 1] Đang quét Hymetnet...")
@@ -111,7 +142,6 @@ def crawl_lightning_data_realtime():
                     dt = datetime(nam, thang, ngay, gio, phut, giay, tzinfo=timezone.utc)
                     ts = dt.timestamp()
                     
-                    # CHỈ LẤY SÉT TRONG 10 PHÚT QUA
                     if current_ts - ts > 600: 
                         continue
 
@@ -120,11 +150,12 @@ def crawl_lightning_data_realtime():
                     ts_int = int(ts)
                     key = hashlib.md5(f"{ts_int}_{lat_round}_{lng_round}".encode()).hexdigest()
                     
-                    # GỌI HÀM KIỂM TRA TRÙNG LẶP TRƯỚC KHI THÊM
-                    if key not in db_data and not kiem_tra_trung_lap(lat, lng, ts_int, db_data):
-                        updates[key] = {"lat": lat, "lng": lng, "g": giatri, "t": ts_int, "l": loaiset, "src": "Hymetnet"}
-                        db_data[key] = updates[key] # Bơm luôn vào kho tạm để xét các điểm sau
-                        diem_moi += 1
+                    # Kiểm tra không bị trùng với Firebase VÀ không bị trùng với updates
+                    if key not in db_data and updates.get(key) is not None:
+                        if not kiem_tra_trung_lap(lat, lng, ts_int, db_data, updates):
+                            updates[key] = {"lat": lat, "lng": lng, "g": giatri, "t": ts_int, "l": loaiset, "src": "Hymetnet"}
+                            db_data[key] = updates[key] 
+                            diem_moi += 1
                 except Exception:
                     continue
             print(f"✅ Hymetnet: Đã ghi nhận {diem_moi} điểm mới (Đã lọc trùng).")
@@ -186,12 +217,12 @@ def crawl_lightning_data_realtime():
                 ts_int = int(ts)
                 key = hashlib.md5(f"{ts_int}_{round(lat_float, 4)}_{round(lng_float, 4)}".encode()).hexdigest()
                 
-                # GỌI HÀM KIỂM TRA TRÙNG LẶP TRƯỚC KHI THÊM
-                if key not in db_data and not kiem_tra_trung_lap(lat_float, lng_float, ts_int, db_data):
-                    updates[key] = {"lat": lat_float, "lng": lng_float, "g": giatri, "t": ts_int, "l": int(loaiset), "src": "Vaisala"}
-                    db_data[key] = updates[key] # Bơm luôn vào kho tạm
-                    diem_v += 1
-                    diem_moi += 1
+                if key not in db_data and updates.get(key) is not None:
+                    if not kiem_tra_trung_lap(lat_float, lng_float, ts_int, db_data, updates):
+                        updates[key] = {"lat": lat_float, "lng": lng_float, "g": giatri, "t": ts_int, "l": int(loaiset), "src": "Vaisala"}
+                        db_data[key] = updates[key]
+                        diem_v += 1
+                        diem_moi += 1
                     
             print(f"✅ Vaisala: Bổ sung {diem_v} điểm mới (Đã lọc trùng).")
         elif res_v.status_code == 429:
@@ -201,13 +232,13 @@ def crawl_lightning_data_realtime():
 
     # 3. DỌN SẠCH DỮ LIỆU CŨ QUÁ 2 GIỜ (7200 GIÂY)
     two_hours_ago = current_ts - 7200
-    diem_xoa = 0
+    diem_xoa_cu = 0
     for k, v in db_data.items():
         if v is None or k in updates: continue
         t_val = v.get("t", 0)
         if float(t_val) < two_hours_ago:
             updates[k] = None 
-            diem_xoa += 1
+            diem_xoa_cu += 1
 
     # 4. ĐẨY DỮ LIỆU LÊN FIREBASE
     if updates:
@@ -215,7 +246,7 @@ def crawl_lightning_data_realtime():
         try:
             res = requests.patch(FIREBASE_URL, json=updates, timeout=15)
             if res.status_code == 200: 
-                print(f"✅ HOÀN TẤT! Ghi nhận {diem_moi} điểm mới. Xóa {diem_xoa} điểm cũ (>2h).")
+                print(f"✅ HOÀN TẤT! Ghi nhận {diem_moi} điểm mới. Đã dọn dẹp {diem_xoa_cu} điểm cũ và {diem_trung_cu} điểm trùng lặp.")
             else:
                 print(f"❌ Lỗi ghi Firebase: HTTP {res.status_code}")
         except Exception as e: 
