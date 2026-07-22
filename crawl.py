@@ -6,6 +6,25 @@ import re
 import hashlib
 from datetime import datetime, timezone, timedelta
 
+# =========================================================================
+# HÀM KIỂM TRA TRÙNG LẶP THÔNG MINH (LỌC SAI SỐ GIỮA CÁC NGUỒN SÉT)
+# =========================================================================
+def kiem_tra_trung_lap(new_lat, new_lng, new_ts, db_data):
+    """
+    So sánh điểm sét mới với kho dữ liệu hiện có.
+    Nếu lệch thời gian <= 5 giây VÀ lệch tọa độ <= 0.002 độ (~200m) -> Coi là Trùng lặp
+    """
+    for k, v in db_data.items():
+        if v is None: continue
+        old_lat = v.get("lat", 0)
+        old_lng = v.get("lng", 0)
+        old_ts = v.get("t", 0)
+        
+        if abs(new_ts - old_ts) <= 5 and abs(new_lat - old_lat) <= 0.002 and abs(new_lng - old_lng) <= 0.002:
+            return True # Đã tồn tại điểm sét này rồi, báo Trùng!
+    return False
+
+
 def crawl_lightning_data_realtime():
     print("🚀 KHỞI ĐỘNG BOT TỨC THỜI: QUÉT SÉT (10 PHÚT QUA)")
     
@@ -54,9 +73,8 @@ def crawl_lightning_data_realtime():
     updates = {}
     diem_moi = 0
 
-    # LUỒNG 1: CÀO HYMETNET (CHỈ TỪ CHỐI THỜI GIAN QUÁ HẠN, LẤY MỌI CƯỜNG ĐỘ)
+    # LUỒNG 1: CÀO HYMETNET
     print("\n[LUỒNG 1] Đang quét Hymetnet...")
-    hymetnet_success = False
     try:
         res_h = requests.get(url_hymetnet, headers=headers_hymetnet, timeout=10)
         if res_h.status_code != 200:
@@ -69,7 +87,6 @@ def crawl_lightning_data_realtime():
             
             for block in valid_blocks:
                 try:
-                    # BỎ QUA BỘ LỌC CƯỜNG ĐỘ, CHỈ LẤY GIÁ TRỊ NẾU CÓ, KHÔNG CÓ THÌ GÁN 0
                     loaiset_m = re.search(r'["\']?loaiset["\']?\s*:\s*(\d+)', block, re.IGNORECASE)
                     loaiset = int(loaiset_m.group(1)) if loaiset_m else 0
                     
@@ -94,7 +111,7 @@ def crawl_lightning_data_realtime():
                     dt = datetime(nam, thang, ngay, gio, phut, giay, tzinfo=timezone.utc)
                     ts = dt.timestamp()
                     
-                    # CHỈ LẤY SÉT TRONG 10 PHÚT (600 GIÂY) QUA
+                    # CHỈ LẤY SÉT TRONG 10 PHÚT QUA
                     if current_ts - ts > 600: 
                         continue
 
@@ -103,22 +120,21 @@ def crawl_lightning_data_realtime():
                     ts_int = int(ts)
                     key = hashlib.md5(f"{ts_int}_{lat_round}_{lng_round}".encode()).hexdigest()
                     
-                    if key not in db_data and key not in updates:
-                        updates[key] = {"lat": lat, "lng": lng, "g": giatri, "t": ts_int, "l": loaiset}
-                        db_data[key] = updates[key]
+                    # GỌI HÀM KIỂM TRA TRÙNG LẶP TRƯỚC KHI THÊM
+                    if key not in db_data and not kiem_tra_trung_lap(lat, lng, ts_int, db_data):
+                        updates[key] = {"lat": lat, "lng": lng, "g": giatri, "t": ts_int, "l": loaiset, "src": "Hymetnet"}
+                        db_data[key] = updates[key] # Bơm luôn vào kho tạm để xét các điểm sau
                         diem_moi += 1
                 except Exception:
                     continue
-            hymetnet_success = True
-            print(f"✅ Hymetnet: Đã ghi nhận {diem_moi} điểm.")
+            print(f"✅ Hymetnet: Đã ghi nhận {diem_moi} điểm mới (Đã lọc trùng).")
         else:
             print(f"❌ Hymetnet lỗi HTTP {res_h.status_code}")
     except Exception as e:
         print(f"❌ Lỗi mạng Hymetnet: {e}")
 
-    # LUỒNG 2: CÀO VAISALA (NẾU CẦN BỔ SUNG, BỎ QUA KIỂM TRA GIÁ TRỊ CƯỜNG ĐỘ)
+    # LUỒNG 2: CÀO VAISALA
     print("\n[LUỒNG 2] Đang quét Vaisala...")
-    vaisala_success = False
     try:
         res_v = requests.get(api_url_vaisala, headers=headers_vaisala, timeout=15)
         if res_v.status_code == 200:
@@ -150,7 +166,6 @@ def crawl_lightning_data_realtime():
                     loaiset = item.get("type", 0)
                     time_str = item.get("timestamp") or item.get("time") or item.get("datetime")
 
-                # Không lọc cường độ (g = 0 vẫn lấy), chỉ cần có tọa độ và thời gian
                 if lat is None or lng is None or not time_str:
                     continue
 
@@ -163,23 +178,22 @@ def crawl_lightning_data_realtime():
                         ts = dt.timestamp()
                     except: continue
 
-                # Chỉ lấy 10 phút (600 giây) qua
                 if current_ts - ts > 600:
                     continue
 
-                lat_round = round(float(lat), 4)
-                lng_round = round(float(lng), 4)
+                lat_float = float(lat)
+                lng_float = float(lng)
                 ts_int = int(ts)
-                key = hashlib.md5(f"{ts_int}_{lat_round}_{lng_round}".encode()).hexdigest()
+                key = hashlib.md5(f"{ts_int}_{round(lat_float, 4)}_{round(lng_float, 4)}".encode()).hexdigest()
                 
-                if key not in db_data and key not in updates:
-                    updates[key] = {"lat": float(lat), "lng": float(lng), "g": giatri, "t": ts_int, "l": int(loaiset)}
-                    db_data[key] = updates[key] 
+                # GỌI HÀM KIỂM TRA TRÙNG LẶP TRƯỚC KHI THÊM
+                if key not in db_data and not kiem_tra_trung_lap(lat_float, lng_float, ts_int, db_data):
+                    updates[key] = {"lat": lat_float, "lng": lng_float, "g": giatri, "t": ts_int, "l": int(loaiset), "src": "Vaisala"}
+                    db_data[key] = updates[key] # Bơm luôn vào kho tạm
                     diem_v += 1
                     diem_moi += 1
                     
-            vaisala_success = True
-            print(f"✅ Vaisala: Bổ sung {diem_v} điểm.")
+            print(f"✅ Vaisala: Bổ sung {diem_v} điểm mới (Đã lọc trùng).")
         elif res_v.status_code == 429:
             print("⚠️ Vaisala báo lỗi 429 (Chặn IP).")
     except Exception as e:
@@ -189,7 +203,7 @@ def crawl_lightning_data_realtime():
     two_hours_ago = current_ts - 7200
     diem_xoa = 0
     for k, v in db_data.items():
-        if v is None: continue
+        if v is None or k in updates: continue
         t_val = v.get("t", 0)
         if float(t_val) < two_hours_ago:
             updates[k] = None 
